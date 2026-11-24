@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: light;
+    font-family: system-ui, sans-serif;
+    background: #f4f6f2;
+    color: #17261e;
+  }
+
+  :focus-visible { outline: 3px solid #228253; outline-offset: 4px; }
+  h1 { @apply text-4xl font-bold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+}
+
+@layer components {
+  .shell { @apply min-h-dvh; }
+  .app-header { @apply border-b border-[#dce5dd] bg-[#fcfdfa]; }
+  .brand { @apply mx-auto flex max-w-5xl items-center gap-3 px-5 py-4 text-lg font-bold; }
+  .brand span, .hero-icon { @apply grid shrink-0 place-items-center rounded-2xl; }
+  .brand span { @apply size-10 bg-[#d6efe0] text-[#1c6242]; }
+  .content { @apply mx-auto max-w-5xl px-5 pt-7; padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+  .page-heading { @apply mb-6 grid gap-2; }
+  .eyebrow { @apply flex items-center gap-2 text-sm font-semibold text-[#356047]; }
+  .eyebrow::first-letter { text-transform: uppercase; }
+  .muted { @apply text-[#53665b]; }
+  .hero { @apply mb-5 flex items-start gap-4 rounded-3xl bg-[#174c36] px-5 py-6 text-white sm:px-8; }
+  .hero-icon { @apply size-12 bg-[#2b624a] text-[#d6f2e0]; }
+  .hero-label { @apply text-sm font-semibold tracking-wider text-[#cee8d6]; }
+  .hero h2 { @apply my-1 text-3xl; }
+  .hero p:last-child { @apply text-[#e4f2e8]; }
+  .dashboard-grid { @apply grid gap-4 sm:grid-cols-2; }
+  .panel { @apply rounded-3xl border border-[#dce5dd] bg-white p-5; }
+  .panel h2 { @apply mb-3 flex items-center gap-2.5; }
+  .panel h2 svg { @apply size-5 text-[#25724e]; }
+  .metric { @apply text-4xl font-bold tracking-tight; }
+  .metric small { @apply text-lg font-semibold text-[#53665b]; }
+  .note { @apply mt-4 border-t border-[#e0e8e1] pt-3 text-sm text-[#53665b]; }
+  .macro-list { @apply mt-4 grid grid-cols-3 gap-2; }
+  .macro-list li { @apply grid rounded-xl bg-[#eff5ef] p-2.5; }
+  .macro-list span { @apply text-sm text-[#53665b]; }
+  .activity-row { @apply mb-2 flex items-center gap-2 font-medium text-[#356047]; }
+  .profile-list > div { @apply flex flex-wrap justify-between gap-x-5 gap-y-1 border-b border-[#e0e8e1] py-3; }
+  .profile-list > div:last-child { @apply border-b-0; }
+  .profile-list dd { @apply font-medium; }
+  .bottom-nav { @apply fixed inset-x-0 bottom-0 z-10 flex justify-center gap-2 border-t border-[#dce5dd] bg-[#fcfdfa] px-5 pt-2; padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+  .bottom-nav a { @apply flex min-h-12 w-full max-w-36 flex-col items-center justify-center gap-0.5 rounded-xl text-sm font-medium text-[#53665b]; }
+  .bottom-nav a.active { @apply bg-[#d6efe0] text-[#174c36]; }
+}
