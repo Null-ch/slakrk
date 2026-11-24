@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db, defaultProfile } from '../db/database'
 import { addDays, dateLabel, localDate } from '../domain/dates'
+import { referenceProducts } from '../data/meals'
 import { plannedMenu } from '../domain/personalPlan'
 import { mealKinds, nutrientKeys, nutrientLabels, nutritionNumber, scaleNutrients, sumNutrients, type Meal } from '../domain/nutrition'
 
@@ -13,12 +14,17 @@ export function Nutrition() {
   const products = useLiveQuery(() => db.products.toArray(), [], [])
   const entries = useLiveQuery(() => db.meals.where('date').equals(date).toArray(), [date], [])
   const override = useLiveQuery(() => db.menuOverrides.get(date), [date])
-  const menu = override?.meals ?? plannedMenu(date, profile.autoPlan ? profile.goals.calories : undefined)
-  const plannedRows = menu.map((items, group) => items.map((item, index) => ({
-    ...item,
-    id: `plan-${date}-${group}-${index}`,
-    per100g: products.find((product) => product.name === item.name)?.per100g,
-  })))
+  const menu = override?.meals ?? plannedMenu(date, (profile.autoPlan || profile.appliedMenu) ? profile.goals.calories : undefined, profile.appliedMenu)
+  const recorded = new Map(entries.map((item) => [item.id, item]))
+  const plannedRows = menu.map((items, group) => items.map((item, index) => {
+    const base = `plan-${date}-${group}-${index}`
+    const legacy = recorded.get(base)
+    return {
+      ...item,
+      id: !profile.appliedMenu || legacy?.name === item.name ? base : base + '-' + item.name,
+      per100g: (products.find((product) => product.name === item.name) ?? referenceProducts.find((product) => product.name === item.name))?.per100g,
+    }
+  }))
   const totals = sumNutrients(entries.map((item) => scaleNutrients(item.per100g, item.grams / 100)))
   const known = plannedRows.flat().flatMap((item) => item.grams && item.per100g ? [scaleNutrients(item.per100g, item.grams / 100)] : [])
   const complete = known.length === plannedRows.flat().length
@@ -62,8 +68,8 @@ export function Nutrition() {
       return <section className="panel section-gap" key={meal}>
         <h2>{meal}</h2>
         <ul className="record-list">{items.map((item) => {
-          const row = entries.find(({ id }) => id === item.id) ?? rows.find(({ id }) => id === item.id)
-          return <li key={item.id}><div><strong>{item.name}</strong><p className="muted">{row ? `${row.grams} г` : item.grams ? `${item.grams} г` : item.units ? `${item.units} шт.` : 'Порция не задана'}
+          const row = recorded.get(item.id) ?? rows.find(({ id }) => id === item.id)
+          return <li key={item.id}><div><strong>{row?.name ?? item.name}</strong><p className="muted">{row ? `${row.grams} г` : item.grams ? `${item.grams} г` : item.units ? `${item.units} шт.` : 'Порция не задана'}
             {row ? ` · ≈${nutritionNumber.format(row.grams * row.per100g.calories / 100)} ккал` : ' · без расчёта'}</p></div>
             {row && <label className="flex items-center gap-2"><input type="checkbox" disabled={saving} checked={currentIds.has(item.id)} onChange={(event) => void mark([row], !event.target.checked)} /><span>Съедено</span></label>}
           </li>

@@ -5,6 +5,7 @@ import type { Meal, Product, Recipe } from '../domain/nutrition'
 import type { Walk, Workout } from '../domain/activity'
 import type { Program, ProgramDay, ShoppingItem } from '../domain/program'
 import type { Reminder } from '../domain/reminders'
+import { menuStyles } from '../domain/menuRotation'
 import { activityLevels } from '../domain/personalPlan'
 import { initialNutritionGoals, initialProfile } from '../data/profile'
 
@@ -23,6 +24,8 @@ export const profileSchema = z.object({
   autoPlan: z.boolean().optional(),
   recommendationActivity: z.enum(activityLevels).optional(),
   appliedActivity: z.enum(activityLevels).optional(),
+  menuPreference: z.enum(menuStyles).optional(),
+  appliedMenu: z.enum(menuStyles).optional(),
   estimatedMaintenance: z.number().positive().optional(),
   goals: z.object({
     calories: z.number().positive(),
@@ -71,7 +74,14 @@ class AppDatabase extends Dexie {
     this.version(4).stores({ programs: 'id', days: 'number,date', shopping: 'id,week' })
     this.version(5).stores({ reminders: 'id' })
     this.version(6).stores({ menuOverrides: 'date' })
-    this.version(7).stores({}).upgrade((tx) => tx.table('products').bulkPut(referenceProducts.slice(-1)))
+    this.version(7).stores({}).upgrade((tx) => tx.table('products').bulkPut(referenceProducts.slice(14, 15)))
+    this.version(8).stores({}).upgrade(async (tx) => {
+      const table = tx.table('products')
+      const existing = await table.toArray()
+      const names = new Set(existing.map((product) => product.name))
+      const ids = new Set(existing.map((product) => product.id))
+      await table.bulkAdd(referenceProducts.slice(15).filter(({ id, name }) => !ids.has(id) && !names.has(name)))
+    })
     this.on('populate', async () => {
       await this.products.bulkAdd(referenceProducts)
     })

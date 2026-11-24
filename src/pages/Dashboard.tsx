@@ -25,7 +25,7 @@ export function Dashboard() {
   const plan = program && active ? planForDay(active, profile.autoPlan, profile.appliedActivity) : undefined
   const closed = days.filter((entry) => entry.number <= profile.programDays && isClosed(entry)).length
   const totals = sumNutrients(meals.map((entry) => scaleNutrients(entry.per100g, entry.grams / 100)))
-  const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? plannedMenu(today, profile.autoPlan ? profile.goals.calories : undefined)
+  const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? plannedMenu(today, (profile.autoPlan || profile.appliedMenu) ? profile.goals.calories : undefined, profile.appliedMenu)
 
   return <>
     <header className="page-heading">

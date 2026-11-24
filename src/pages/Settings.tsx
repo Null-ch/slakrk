@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { db, profileSchema, type Profile } from '../db/database'
 import { localDate } from '../domain/dates'
+import { menuStyles, menuStyleLabels } from '../domain/menuRotation'
 import { activityLevels, activityOptions, recommendPlan } from '../domain/personalPlan'
 
 export function Settings() {
@@ -23,6 +24,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
       heightCm: Number(value('heightCm')), startingWeightKg: Number(value('startingWeightKg')),
       activity: value('activity'), averageStepsUpTo: Number(value('averageStepsUpTo')),
       recommendationActivity: value('recommendationActivity'),
+      menuPreference: value('menuPreference'),
       experience: value('experience'), medicalRestrictions: value('medicalRestrictions').trim() || null,
       programDays: Number(value('programDays')), theme: value('theme'),
       goals: { calories: Number(value('calories')), protein: Number(value('protein')), fat: Number(value('fat')), carbohydrates: Number(value('carbohydrates')) },
@@ -36,7 +38,8 @@ function ProfileForm({ profile }: { profile: Profile }) {
     if (!result.success) { setMessage('Проверьте значения полей.'); return }
     const profile = result.data
     const next = recommendPlan(profile, localDate())
-    const apply = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') === 'recommendation'
+    const action = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')
+    const apply = action === 'recommendation'
     if (apply && !next) { setMessage('Автоматический план недоступен для этих параметров.'); return }
     if (apply && !new FormData(form).has('canApply')) {
       setMessage('Подтвердите, что вам подходит обычная физическая нагрузка.')
@@ -44,6 +47,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
     }
     const updated: Profile = { ...profile, estimatedMaintenance: next?.maintenance,
       ...(apply && next ? { autoPlan: true, appliedActivity: next.level, goals: next.goals } : {}),
+      ...(apply || action === 'menu' ? { appliedMenu: profile.menuPreference ?? 'mixed' } : {}),
     }
     setSaving(true)
     try {
@@ -55,7 +59,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
           if (input instanceof HTMLInputElement) input.value = String(value)
         }
       }
-      setMessage(apply ? 'Рекомендации применены.' : 'Настройки сохранены.')
+      setMessage(apply ? 'Рекомендации применены.' : action === 'menu' ? 'Меню обновлено.' : 'Настройки сохранены.')
     } catch { setMessage('Не удалось сохранить настройки.') }
     finally { setSaving(false) }
   }
@@ -85,6 +89,14 @@ function ProfileForm({ profile }: { profile: Profile }) {
     <NumberField name="carbohydrates" label="Углеводы, г" value={profile.goals.carbohydrates} min={1} step="any" />
     <label>Тема<select name="theme" defaultValue={profile.theme}><option value="light">Светлая</option><option value="dark">Тёмная</option></select></label>
     <button className="action" type="submit" disabled={saving}>Сохранить настройки</button>
+    <section className="form-grid section-gap">
+      <h2>Варианты меню</h2>
+      <label>Предпочтения<select name="menuPreference" defaultValue={profile.menuPreference ?? profile.appliedMenu ?? 'mixed'}>
+        {menuStyles.map((key) => <option key={key} value={key}>{menuStyleLabels[key]}</option>)}
+      </select></label>
+      <p className="muted">Блюда меняются по дням, порции подстраиваются к дневной цели. Варианты содержат яйца и молочные продукты. В состав также могут входить пшеница и соя.</p>
+      <button className="secondary" type="submit" value="menu" disabled={saving}>Обновить только меню</button>
+    </section>
     <section className="form-grid section-gap" aria-live="polite">
       <h2>Рекомендуемый план</h2>
       {recommendation ? <>

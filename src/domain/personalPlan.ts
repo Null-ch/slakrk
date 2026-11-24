@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { menuForDate, referenceProducts, type MenuOverride } from '../data/meals'
+import { variedMenu, type MenuStyle } from './menuRotation'
 import { calculateBmi } from './calculations'
 import { scaleNutrients, sumNutrients } from './nutrition'
 
@@ -41,10 +42,10 @@ const variants = [
   ['Рис', 'Треска', 'Банан'], ['Гречка', 'Треска', 'Яблоко'], ['Рис', 'Лосось', 'Банан'], ['Гречка', 'Лосось', 'Банан'],
 ] as const
 
-export function plannedMenu(date: string, calories?: number): Ingredient[][] {
+export function plannedMenu(date: string, calories?: number, style?: MenuStyle): Ingredient[][] {
   if (!calories) return menuForDate(date)
   const [starch, fish, snack] = variants[new Date(date + 'T12:00:00').getDay()] ?? variants[0]
-  const template = [
+  const template = (style && variedMenu(date, style)) || [
     [grain('Овсянка', 70), portion('Яйца', 100, 'Яйца'), fruit('Яблоко', 130)],
     [portion('Куриная грудка', 170, 'Мясо и птица'), grain(starch, 90), veg('Брокколи', 160), oil(15)],
     [fruit(snack, 180), portion('Авокадо', 90, 'Фрукты'), portion('Греческий йогурт, без сахара', 200, 'Молочные продукты')],
@@ -55,13 +56,13 @@ export function plannedMenu(date: string, calories?: number): Ingredient[][] {
   return template.map((meal) => meal.map((item) => ({ ...item, grams: Math.round((item.grams ?? 0) * multiplier / 5) * 5 })))
 }
 
-export function recommendPlan(profile: PlanInput & { recommendationActivity?: ActivityLevel; medicalRestrictions?: string | null }, date: string) {
+export function recommendPlan(profile: PlanInput & { recommendationActivity?: ActivityLevel; menuPreference?: MenuStyle; medicalRestrictions?: string | null }, date: string) {
   const input = planInputSchema.safeParse(profile)
   if (!input.success || profile.medicalRestrictions?.trim()) return undefined
   const level = profile.recommendationActivity ?? 'starter'
   const estimate = estimatePlan(input.data, level)
   if (estimate.bmi < 18.5) return undefined
-  const menu = plannedMenu(date, estimate.calories)
+  const menu = plannedMenu(date, estimate.calories, profile.menuPreference ?? 'mixed')
   const nutrients = menuNutrients(menu)
   return {
     ...estimate, level, menuCalories: Math.round(nutrients.calories),

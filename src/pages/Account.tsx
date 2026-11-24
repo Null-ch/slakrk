@@ -151,7 +151,7 @@ export function PlanForm() {
     try {
       await db.transaction('rw', db.profiles, db.programs, async () => {
         await db.profiles.add({ ...defaultProfile, ...result.data, autoPlan: true,
-          goals: estimate.goals, estimatedMaintenance: estimate.maintenance, appliedActivity: estimate.level })
+          goals: estimate.goals, estimatedMaintenance: estimate.maintenance, appliedActivity: estimate.level, menuPreference: 'mixed', appliedMenu: 'mixed' })
         await db.programs.put({ id: 'program', started: localDate() })
       })
     } catch { setMessage('Не удалось сохранить план. Попробуйте снова.') }

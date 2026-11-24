@@ -20,7 +20,7 @@ export function Shopping() {
 
   for (let offset = 0; offset < Math.min(7, length - (week - 1) * 7); offset++) {
     const date = addDays(start, offset)
-    for (const item of (overrides.find((row) => row.date === date)?.meals ?? plannedMenu(date, profile.autoPlan ? profile.goals.calories : undefined)).flat()) {
+    for (const item of (overrides.find((row) => row.date === date)?.meals ?? plannedMenu(date, (profile.autoPlan || profile.appliedMenu) ? profile.goals.calories : undefined, profile.appliedMenu)).flat()) {
       const id = 'menu-' + week + '-' + item.name
       const current = generated.get(id)
       generated.set(id, {
