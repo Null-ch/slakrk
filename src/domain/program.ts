@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ActivityLevel } from './personalPlan'
 
 export const taskKeys = ['nutrition', 'workout', 'walking', 'weight'] as const
 export const taskNames = { nutrition: 'Питание', workout: 'Силовая тренировка', walking: 'Ходьба', weight: 'Взвешивание' }
@@ -28,9 +29,14 @@ const schedule: [string, string][] = [
   ['А', '15'], ['', '30'], ['Б', '15'], ['', '30–35'], ['А', '15'], ['', '35–40'], ['', ''],
 ]
 
-export function planForDay(number: number, beginner = false) {
+export function planForDay(number: number, beginner = false, level?: ActivityLevel) {
+  if (beginner && level === 'gentle' && number >= 1 && number <= 21) {
+    const weekday = (number - 1) % 7
+    const kind = weekday === 0 ? 'А' : weekday === 3 ? 'Б' : ''
+    return { kind, minutes: [0, 2, 3, 5].includes(weekday) ? '5–10' : '', speed: 'комфортный темп', incline: '0' }
+  }
   const [kind, minutes] = schedule[number - 1] ?? ['', '']
-  if (beginner) return { kind, minutes: minutes ? kind ? '10' : '15' : '', speed: 'комфортный темп', incline: '0' }
+  if (beginner) return { kind, minutes: minutes ? level === 'regular' ? kind ? '15' : '20' : kind ? '10' : '15' : '', speed: 'комфортный темп', incline: '0' }
   const week = Math.ceil(number / 7)
   return { kind, minutes, speed: week === 1 ? '3–3,5' : week === 2 ? '3,5–4' : '3,5–4,5', incline: week === 1 ? '0' : week === 2 ? '0–2' : '0–3' }
 }

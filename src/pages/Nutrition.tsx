@@ -31,7 +31,10 @@ export function Nutrition() {
     setSaving(true)
     try {
       if (remove) await db.meals.bulkDelete(rows.map(({ id }) => id))
-      else await db.meals.bulkPut(rows)
+      else await db.transaction('rw', db.meals, async () => {
+        const existing = await db.meals.bulkGet(rows.map(({ id }) => id))
+        await db.meals.bulkAdd(rows.filter((_, index) => !existing[index]))
+      })
       setMessage('')
     } catch { setMessage('Не удалось сохранить отметку.') }
     finally { setSaving(false) }
@@ -59,8 +62,8 @@ export function Nutrition() {
       return <section className="panel section-gap" key={meal}>
         <h2>{meal}</h2>
         <ul className="record-list">{items.map((item) => {
-          const row = rows.find(({ id }) => id === item.id)
-          return <li key={item.id}><div><strong>{item.name}</strong><p className="muted">{item.grams ? `${item.grams} г` : item.units ? `${item.units} шт.` : 'Порция не задана'}
+          const row = entries.find(({ id }) => id === item.id) ?? rows.find(({ id }) => id === item.id)
+          return <li key={item.id}><div><strong>{item.name}</strong><p className="muted">{row ? `${row.grams} г` : item.grams ? `${item.grams} г` : item.units ? `${item.units} шт.` : 'Порция не задана'}
             {row ? ` · ≈${nutritionNumber.format(row.grams * row.per100g.calories / 100)} ккал` : ' · без расчёта'}</p></div>
             {row && <label className="flex items-center gap-2"><input type="checkbox" disabled={saving} checked={currentIds.has(item.id)} onChange={(event) => void mark([row], !event.target.checked)} /><span>Съедено</span></label>}
           </li>

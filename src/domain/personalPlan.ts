@@ -11,9 +11,18 @@ export const planInputSchema = z.object({
 })
 export type PlanInput = z.infer<typeof planInputSchema>
 
-export function estimatePlan(input: PlanInput) {
+export const activityLevels = ['gentle', 'starter', 'regular'] as const
+export type ActivityLevel = typeof activityLevels[number]
+
+export const activityOptions: Record<ActivityLevel, { label: string; factor: number; sets: number; walk: string }> = {
+  gentle: { label: 'Почти не двигаюсь', factor: 1.2, sets: 1, walk: '5–10' },
+  starter: { label: 'Гуляю время от времени', factor: 1.2, sets: 2, walk: '10–15' },
+  regular: { label: 'Регулярно хожу и тренируюсь', factor: 1.4, sets: 2, walk: '15–20' },
+}
+
+export function estimatePlan(input: PlanInput, level: ActivityLevel = 'starter') {
   const resting = 10 * input.startingWeightKg + 6.25 * input.heightCm - 5 * input.ageYears + (input.sex === 'Мужской' ? 5 : -161)
-  const maintenance = Math.round(resting * 1.2)
+  const maintenance = Math.round(resting * activityOptions[level].factor)
   const bmi = calculateBmi(input.startingWeightKg, input.heightCm)
   const floor = input.sex === 'Мужской' ? 1600 : 1400
   const reduction = bmi >= 25 ? Math.min(300, Math.floor(maintenance * 0.1), Math.max(0, maintenance - floor)) : 0
@@ -44,6 +53,20 @@ export function plannedMenu(date: string, calories?: number): Ingredient[][] {
   const total = menuNutrients(template).calories
   const multiplier = Math.min(1.65, Math.max(0.7, calories / total))
   return template.map((meal) => meal.map((item) => ({ ...item, grams: Math.round((item.grams ?? 0) * multiplier / 5) * 5 })))
+}
+
+export function recommendPlan(profile: PlanInput & { recommendationActivity?: ActivityLevel; medicalRestrictions?: string | null }, date: string) {
+  const input = planInputSchema.safeParse(profile)
+  if (!input.success || profile.medicalRestrictions?.trim()) return undefined
+  const level = profile.recommendationActivity ?? 'starter'
+  const estimate = estimatePlan(input.data, level)
+  if (estimate.bmi < 18.5) return undefined
+  const menu = plannedMenu(date, estimate.calories)
+  const nutrients = menuNutrients(menu)
+  return {
+    ...estimate, level, menuCalories: Math.round(nutrients.calories),
+    goals: { calories: estimate.calories, protein: Math.round(nutrients.protein), fat: Math.round(nutrients.fat), carbohydrates: Math.round(nutrients.carbohydrates) },
+  }
 }
 
 export function menuNutrients(menu: Ingredient[][]) {

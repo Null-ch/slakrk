@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { db, defaultProfile, initializeAccount } from '../db/database'
 import { importBackup, readBackup } from '../domain/backup'
 import { localDate } from '../domain/dates'
-import { estimatePlan, menuNutrients, plannedMenu, planInputSchema } from '../domain/personalPlan'
+import { recommendPlan, planInputSchema } from '../domain/personalPlan'
 
 type Account = { id: string; name: string }
 const sessionKey = 'stop-jir-tab-account'
@@ -146,13 +146,12 @@ export function PlanForm() {
       ageYears: Number(fields.get('age')), sex: fields.get('sex'),
     })
     if (!result.success) { setMessage('Проверьте возраст, рост и вес.'); return }
-    const estimate = estimatePlan(result.data)
-    if (estimate.bmi < 18.5) { setMessage('При недостаточном весе автоматический план похудения недоступен. Можно восстановить существующий профиль из резервной копии.'); return }
-    const goals = menuNutrients(plannedMenu(localDate(), estimate.calories))
+    const estimate = recommendPlan(result.data, localDate())
+    if (!estimate) { setMessage('При недостаточном весе автоматический план похудения недоступен. Можно восстановить существующий профиль из резервной копии.'); return }
     try {
       await db.transaction('rw', db.profiles, db.programs, async () => {
         await db.profiles.add({ ...defaultProfile, ...result.data, autoPlan: true,
-          goals: { calories: estimate.calories, protein: Math.round(goals.protein), fat: Math.round(goals.fat), carbohydrates: Math.round(goals.carbohydrates) }, estimatedMaintenance: estimate.maintenance })
+          goals: estimate.goals, estimatedMaintenance: estimate.maintenance, appliedActivity: estimate.level })
         await db.programs.put({ id: 'program', started: localDate() })
       })
     } catch { setMessage('Не удалось сохранить план. Попробуйте снова.') }

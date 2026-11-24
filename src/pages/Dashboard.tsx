@@ -22,7 +22,7 @@ export function Dashboard() {
   const bmi = calculateBmi(currentWeight, profile.heightCm)
   const active = activeDayNumber(days, profile.programDays)
   const day = days.find(({ number }) => number === active)
-  const plan = program && active ? planForDay(active, profile.autoPlan) : undefined
+  const plan = program && active ? planForDay(active, profile.autoPlan, profile.appliedActivity) : undefined
   const closed = days.filter((entry) => entry.number <= profile.programDays && isClosed(entry)).length
   const totals = sumNutrients(meals.map((entry) => scaleNutrients(entry.per100g, entry.grams / 100)))
   const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? plannedMenu(today, profile.autoPlan ? profile.goals.calories : undefined)

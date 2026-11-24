@@ -14,7 +14,7 @@ export function Calendar() {
   const active = activeDayNumber(days, length)
   const number = selected ?? active
   const entry = days.find((day) => day.number === number)
-  const activity = number ? planForDay(number, profile.autoPlan) : undefined
+  const activity = number ? planForDay(number, profile.autoPlan, profile.appliedActivity) : undefined
   const today = localDate()
 
   async function start() {

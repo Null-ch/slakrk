@@ -5,6 +5,7 @@ import { ExercisePose } from '../components/ExercisePose'
 import { db } from '../db/database'
 import { exercisePrograms, workoutSchema, type Workout } from '../domain/activity'
 import { dateLabel, localDate } from '../domain/dates'
+import { activityOptions } from '../domain/personalPlan'
 import { activeDayNumber, planForDay } from '../domain/program'
 
 const setup: Record<Workout['kind'], string[][]> = {
@@ -31,7 +32,8 @@ export function Workouts() {
   const profile = useLiveQuery(() => db.profiles.get('profile'))
   const length = profile?.programDays ?? 21
   const number = activeDayNumber(days, length)
-  const scheduled = program && number ? planForDay(number, profile?.autoPlan).kind : ''
+  const scheduled = program && number ? planForDay(number, profile?.autoPlan, profile?.appliedActivity).kind : ''
+  const sets = profile?.autoPlan && profile.appliedActivity ? activityOptions[profile.appliedActivity].sets : 2
   const [preparing, setPreparing] = useState<Workout['kind']>()
   const [deadline, setDeadline] = useState<number>()
   const [seconds, setSeconds] = useState(0)
@@ -64,7 +66,7 @@ export function Workouts() {
     if (!preparing) return
     const kind = preparing
     const record: Workout = { id: crypto.randomUUID(), date: localDate(), kind, finished: false, restSeconds: 75,
-      exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: [null, null] })),
+      exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: Array<null>(sets).fill(null) })),
     }
     if (await save(record)) { setPreparing(undefined); clearTimer() }
   }
@@ -89,7 +91,7 @@ export function Workouts() {
       {scheduled && <p>По плану сегодня · тренировка {scheduled}</p>}
       <button className="action" onClick={() => setPreparing('А')}>Начать программу А</button>
       <button className="secondary" onClick={() => setPreparing('Б')}>Начать программу Б</button>
-      <p className="muted">Стартовый режим · два подхода к каждому упражнению. Используйте комфортную нагрузку.</p>
+      <p className="muted">По плану · {sets} {sets === 1 ? 'подход' : 'подхода'} на упражнение. Используйте комфортную нагрузку.</p>
     </section>}
     {!active && preparing && <section className="panel form-grid"><h2>Программа {preparing} · разминка</h2>
       <ol className="list-decimal ps-6"><li>Начните с лёгкой ходьбы на месте.</li><li>Добавьте плавные движения плечами, руками и ногами.</li><li>Постепенно разогрейтесь в комфортном темпе.</li></ol>

@@ -5,6 +5,7 @@ import type { Meal, Product, Recipe } from '../domain/nutrition'
 import type { Walk, Workout } from '../domain/activity'
 import type { Program, ProgramDay, ShoppingItem } from '../domain/program'
 import type { Reminder } from '../domain/reminders'
+import { activityLevels } from '../domain/personalPlan'
 import { initialNutritionGoals, initialProfile } from '../data/profile'
 
 export const profileSchema = z.object({
@@ -20,6 +21,8 @@ export const profileSchema = z.object({
   programDays: z.number().int().min(1).max(365),
   theme: z.enum(['light', 'dark']),
   autoPlan: z.boolean().optional(),
+  recommendationActivity: z.enum(activityLevels).optional(),
+  appliedActivity: z.enum(activityLevels).optional(),
   estimatedMaintenance: z.number().positive().optional(),
   goals: z.object({
     calories: z.number().positive(),
