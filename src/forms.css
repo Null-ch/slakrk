@@ -14,9 +14,12 @@
   .inline-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
   .section-links { display: grid; gap: 0.5rem; }
   .section-links a { display: block; }
-  :root[data-theme='dark'] { color-scheme: dark; background: #101b15; color: #edf7ef; }
-  :root[data-theme='dark'] :is(.app-header, .bottom-nav, .panel) { background: #1a2a20; border-color: #3a5041; }
-  :root[data-theme='dark'] :is(.muted, .note, .eyebrow, .metric small, .activity-row, .bottom-nav a:not(.active)) { color: #b6cfbe; }
-  :root[data-theme='dark'] .macro-list li { background: #253a2d; }
-  :root[data-theme='dark'] .macro-list span { color: #b6cfbe; }
+  :root[data-theme='dark'] { color-scheme: dark; background: #101114; color: #f1f2f4; }
+  :root[data-theme='dark'] :is(.app-header, .bottom-nav, .panel) { background: #191b20; border-color: #373a43; }
+  :root[data-theme='dark'] :is(.muted, .note, .eyebrow, .metric small, .activity-row, .bottom-nav a:not(.active)) { color: #bbc0cc; }
+  :root[data-theme='dark'] .macro-list li { background: #252830; }
+  :root[data-theme='dark'] .hero { background: #22252d; }
+  :root[data-theme='dark'] .hero-icon { background: #30343d; }
+  :root[data-theme='dark'] .secondary { background: #2a2d35; color: #f1f2f4; }
+  :root[data-theme='dark'] .macro-list span { color: #bbc0cc; }
 }

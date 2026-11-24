@@ -19,6 +19,8 @@ export const profileSchema = z.object({
   medicalRestrictions: z.string().nullable(),
   programDays: z.number().int().min(1).max(365),
   theme: z.enum(['light', 'dark']),
+  autoPlan: z.boolean().optional(),
+  estimatedMaintenance: z.number().positive().optional(),
   goals: z.object({
     calories: z.number().positive(),
     protein: z.number().positive(),
@@ -57,8 +59,8 @@ class AppDatabase extends Dexie {
   reminders!: EntityTable<Reminder, 'id'>
   menuOverrides!: EntityTable<MenuOverride, 'date'>
 
-  constructor() {
-    super('stop-jir')
+  constructor(accountId: string) {
+    super('stop-jir-account-' + accountId)
     this.version(1).stores({ profiles: 'id', weights: 'date' })
     this.version(2).stores({ products: 'id,name', meals: 'id,date', recipes: 'id,name' })
       .upgrade((tx) => tx.table('products').bulkAdd(referenceProducts))
@@ -66,11 +68,20 @@ class AppDatabase extends Dexie {
     this.version(4).stores({ programs: 'id', days: 'number,date', shopping: 'id,week' })
     this.version(5).stores({ reminders: 'id' })
     this.version(6).stores({ menuOverrides: 'date' })
+    this.version(7).stores({}).upgrade((tx) => tx.table('products').bulkPut(referenceProducts.slice(-1)))
     this.on('populate', async () => {
-      await this.profiles.add(defaultProfile)
       await this.products.bulkAdd(referenceProducts)
     })
   }
 }
 
-export const db = new AppDatabase()
+export let db: AppDatabase
+let currentId: string | undefined
+
+export function initializeAccount(id: string) {
+  if (!/^[a-f0-9]{32}$/.test(id)) throw new Error('Invalid account identifier')
+  if (currentId === id) return
+  db?.close()
+  db = new AppDatabase(id)
+  currentId = id
+}

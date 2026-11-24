@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type FormEvent } from 'react'
 import { db, defaultProfile } from '../db/database'
-import { menuForDate } from '../data/meals'
+import { plannedMenu } from '../domain/personalPlan'
 import { addDays, localDate } from '../domain/dates'
 import { monday } from '../domain/activity'
 import { shoppingSchema, type ShoppingItem } from '../domain/program'
@@ -10,7 +10,8 @@ export function Shopping() {
   const [week, setWeek] = useState(1)
   const [message, setMessage] = useState('')
   const program = useLiveQuery(() => db.programs.get('program'))
-  const length = useLiveQuery(() => db.profiles.get('profile'))?.programDays ?? defaultProfile.programDays
+  const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
+  const length = profile.programDays
   const changes = useLiveQuery(() => db.shopping.where('week').equals(week).toArray(), [week], [])
   const existing = new Map(changes.map((item) => [item.id, item]))
   const start = addDays(program?.started ?? monday(localDate()), (week - 1) * 7)
@@ -19,7 +20,7 @@ export function Shopping() {
 
   for (let offset = 0; offset < Math.min(7, length - (week - 1) * 7); offset++) {
     const date = addDays(start, offset)
-    for (const item of (overrides.find((row) => row.date === date)?.meals ?? menuForDate(date)).flat()) {
+    for (const item of (overrides.find((row) => row.date === date)?.meals ?? plannedMenu(date, profile.autoPlan ? profile.goals.calories : undefined)).flat()) {
       const id = 'menu-' + week + '-' + item.name
       const current = generated.get(id)
       generated.set(id, {

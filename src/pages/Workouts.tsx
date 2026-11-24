@@ -1,101 +1,121 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { db } from '../db/database'
 import { ExercisePose } from '../components/ExercisePose'
+import { db } from '../db/database'
 import { exercisePrograms, workoutSchema, type Workout } from '../domain/activity'
 import { dateLabel, localDate } from '../domain/dates'
+import { activeDayNumber, planForDay } from '../domain/program'
+
+const setup: Record<Workout['kind'], string[][]> = {
+  А: [
+    ['Поставьте устойчивый стул у стены. Стопы на ширине плеч.', 'Отведите таз назад и мягко коснитесь сиденья.', 'Встаньте, опираясь на всю стопу.'],
+    ['Встаньте ровно, гантели по бокам, локти около корпуса.', 'Согните руки без раскачивания.', 'Медленно опустите гантели.'],
+    ['Встаньте лицом к стене, ладони на уровне плеч.', 'Согните локти, приближая грудь к стене.', 'Оттолкнитесь ладонями и вернитесь в исходное положение.'],
+    ['Поднимите гантели к плечам и поставьте стопы устойчиво.', 'Выжмите гантели вверх, сохраняя положение корпуса.', 'Плавно верните гантели к плечам.'],
+    ['Встаньте рядом с устойчивой опорой.', 'Поднимите пятки, сохраняя равновесие.', 'Плавно опустите пятки.'],
+  ],
+  Б: [
+    ['Лягте на спину. Согните колени, поставьте стопы на пол.', 'Поднимите таз, опираясь на стопы.', 'Опустите таз. Движение должно быть комфортным.'],
+    ['Опритесь свободной рукой на устойчивую поверхность.', 'Подтяните локоть с гантелью к боку, сохраняя спину ровной.', 'Медленно опустите гантель. Выполните на обе стороны.'],
+    ['Сядьте устойчиво и поставьте обе стопы на пол.', 'Плавно выпрямите одну ногу.', 'Опустите ногу. Повторите на второй стороне.'],
+    ['Встаньте на четвереньки, ладони под плечами.', 'Вытяните противоположные руку и ногу на удобную высоту.', 'Вернитесь в исходное положение и смените сторону.'],
+    ['Встаньте устойчиво, слегка согните локти.', 'Поднимите руки в стороны без рывка до комфортной высоты.', 'Плавно опустите руки.'],
+  ],
+}
 
 export function Workouts() {
   const history = useLiveQuery(() => db.workouts.orderBy('date').reverse().toArray(), [], [])
-  const [activeId, setActiveId] = useState<string>()
-  const [step, setStep] = useState(0)
-  const [message, setMessage] = useState('')
-  const active = history.find((row) => row.id === activeId && !row.finished) ?? history.find((row) => !row.finished)
-  const exercise = active?.exercises[step]
-  const [timer, setTimer] = useState<number>()
+  const days = useLiveQuery(() => db.days.toArray(), [], [])
+  const program = useLiveQuery(() => db.programs.get('program'))
+  const profile = useLiveQuery(() => db.profiles.get('profile'))
+  const length = profile?.programDays ?? 21
+  const number = activeDayNumber(days, length)
+  const scheduled = program && number ? planForDay(number, profile?.autoPlan).kind : ''
+  const [preparing, setPreparing] = useState<Workout['kind']>()
+  const [deadline, setDeadline] = useState<number>()
   const [seconds, setSeconds] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const active = history.find((row) => !row.finished)
+  const exerciseIndex = active?.exercises.findIndex((row) => row.reps.includes(null)) ?? -1
+  const exercise = exerciseIndex < 0 ? undefined : active?.exercises[exerciseIndex]
+  const setIndex = exercise?.reps.indexOf(null) ?? -1
 
   useEffect(() => {
-    if (!timer) return
-    const tick = () => setSeconds(Math.max(0, Math.ceil((timer - Date.now()) / 1000)))
+    if (!deadline) return
+    const tick = () => setSeconds(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
     tick()
-    const interval = window.setInterval(tick, 250)
-    return () => window.clearInterval(interval)
-  }, [timer])
+    const timer = window.setInterval(tick, 250)
+    return () => window.clearInterval(timer)
+  }, [deadline])
 
-  function startTimer(duration: number) { setSeconds(duration); setTimer(Date.now() + duration * 1000) }
+  function timer(time: number) { setSeconds(time); setDeadline(Date.now() + time * 1000) }
+  function clearTimer() { setSeconds(0); setDeadline(undefined) }
 
-  async function save(value: Workout, success: string) {
-    try { await db.workouts.put(workoutSchema.parse(value)); setMessage(success); return true }
-    catch { setMessage('Проверьте введённые данные.'); return false }
+  async function save(record: Workout) {
+    setBusy(true)
+    try { await db.workouts.put(workoutSchema.parse(record)); setMessage('Сохранено.'); return true }
+    catch { setMessage('Не удалось сохранить тренировку.'); return false }
+    finally { setBusy(false) }
   }
 
-  async function start(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const fields = new FormData(event.currentTarget)
-    const kind = fields.get('kind') === 'Б' ? 'Б' : 'А'
-    const record: Workout = { id: crypto.randomUUID(), date: localDate(), kind, finished: false,
-      restSeconds: Number(fields.get('rest')),
-      exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: Array<null>(Number(fields.get('sets'))).fill(null) })),
+  async function start() {
+    if (!preparing) return
+    const kind = preparing
+    const record: Workout = { id: crypto.randomUUID(), date: localDate(), kind, finished: false, restSeconds: 75,
+      exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: [null, null] })),
     }
-    if (await save(record, 'Тренировка начата.')) { setActiveId(record.id); setStep(0); setTimer(undefined) }
+    if (await save(record)) { setPreparing(undefined); clearTimer() }
   }
 
-  async function saveExercise(event: FormEvent<HTMLFormElement>) {
+  async function saveSet(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!active || !exercise) return
-    const fields = new FormData(event.currentTarget)
-    const next = { name: String(fields.get('name')), technique: String(fields.get('technique')), target: String(fields.get('target')),
-      reps: fields.getAll('reps').map((value) => value === '' ? null : Number(value)),
-    }
-    await save({ ...active, exercises: active.exercises.map((row, index) => index === step ? next : row) }, 'Подходы сохранены.')
+    if (!active || !exercise || setIndex < 0) return
+    const result = Number(new FormData(event.currentTarget).get('reps'))
+    const next = { ...active, exercises: active.exercises.map((item, index) => index === exerciseIndex ? {
+      ...item, reps: item.reps.map((reps, i) => i === setIndex ? result : reps),
+    } : item) }
+    if (await save(next)) timer(active.restSeconds)
+  }
+
+  async function finish() {
+    if (active && await save({ ...active, finished: true })) { clearTimer(); setMessage('Тренировка завершена.') }
   }
 
   return <>
-    <header className="page-heading"><h1>Тренировки</h1><Link to="/treadmill" className="secondary">Беговая дорожка</Link></header>
-    <section className="panel">
-      <h2>Перед началом</h2><p>Разминка 5 минут. Не тренируйся до отказа. При боли в груди, головокружении или необычной одышке остановись.</p>
-      <div className="inline-actions section-gap"><button className="secondary" onClick={() => startTimer(300)}>Таймер разминки</button>
-      {active && <button className="secondary" onClick={() => startTimer(active.restSeconds)}>Таймер отдыха</button>}</div>
-      {timer && <p role="timer">{seconds > 0 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : 'Таймер завершён'}</p>}
-    </section>
-    {!active && <form className="panel form-grid section-gap" onSubmit={start}>
-      <h2>Начать силовую</h2>
-      <label>Программа<select name="kind"><option>А</option><option>Б</option></select></label>
-      <label>Подходов<select name="sets"><option>2</option><option>3</option></select></label>
-      <label>Отдых, секунд<input name="rest" type="number" min="1" defaultValue="75" required /></label>
-      <p className="muted">В первую неделю по программе 2 подхода. Увеличивай объём только при хорошем восстановлении. Штанга 60 кг не входит в программу.</p>
-      <button className="action">Начать тренировку</button>
-    </form>}
-    {active && exercise && <form key={active.id + '-' + step} className="panel form-grid section-gap" onSubmit={saveExercise}>
-      <h2>Программа {active.kind} · упражнение {step + 1} из {active.exercises.length}</h2>
-      <h3 className="font-semibold">{exercise.name}</h3>
+    <header className="page-heading"><h1>Тренировки</h1><Link to="/treadmill" className="secondary w-fit">Беговая дорожка</Link></header>
+    {!active && !preparing && <section className="panel form-grid"><h2>Выберите программу</h2>
+      {scheduled && <p>По плану сегодня · тренировка {scheduled}</p>}
+      <button className="action" onClick={() => setPreparing('А')}>Начать программу А</button>
+      <button className="secondary" onClick={() => setPreparing('Б')}>Начать программу Б</button>
+      <p className="muted">Стартовый режим · два подхода к каждому упражнению. Используйте комфортную нагрузку.</p>
+    </section>}
+    {!active && preparing && <section className="panel form-grid"><h2>Программа {preparing} · разминка</h2>
+      <ol className="list-decimal ps-6"><li>Начните с лёгкой ходьбы на месте.</li><li>Добавьте плавные движения плечами, руками и ногами.</li><li>Постепенно разогрейтесь в комфортном темпе.</li></ol>
+      {deadline && <p role="timer">{seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : 'Время вышло'}</p>}
+      {!deadline && <button className="secondary" onClick={() => timer(300)}>Запустить таймер · 5 мин</button>}
+      <button className="action" disabled={busy} onClick={() => void start()}>Разминка выполнена</button>
+      <button className="secondary" onClick={() => { clearTimer(); setPreparing(undefined) }}>Назад</button>
+    </section>}
+    {active && exercise && seconds > 0 && <section className="panel form-grid"><h2>Отдых между подходами</h2><p role="timer">{seconds} сек</p><p>Дождитесь, пока дыхание станет спокойнее.</p><button className="secondary" onClick={clearTimer}>Я готов продолжать</button></section>}
+    {active && exercise && seconds === 0 && <form key={exerciseIndex + '-' + setIndex} className="panel form-grid" onSubmit={saveSet}>
+      <h2>{exercise.name}</h2>
+      <p className="muted">Программа {active.kind} · упражнение {exerciseIndex + 1} из {active.exercises.length} · подход {setIndex + 1} из {exercise.reps.length}</p>
       <ExercisePose name={exercise.name} />
-      <p className="muted">План повторений · {exercise.target}</p>
-      <p>{exercise.technique}</p>
-      <details><summary>Заменить упражнение или изменить цель</summary>
-        <label>Название<input name="name" defaultValue={exercise.name} required /></label>
-        <label>Техника<textarea name="technique" defaultValue={exercise.technique} required /></label>
-        <label>Цель по повторениям<input name="target" defaultValue={exercise.target} required /></label>
-      </details>
-      {exercise.reps.map((reps, index) => <label key={index}>Подход {index + 1} · повторения<input name="reps" type="number" min="0" defaultValue={reps ?? ''} /></label>)}
-      <button className="action">Выполнено · сохранить подходы</button>
-      <div className="inline-actions">
-        {step > 0 && <button className="secondary" type="button" onClick={() => setStep(step - 1)}>Назад</button>}
-        {step + 1 < active.exercises.length && <button className="secondary" type="button" onClick={() => setStep(step + 1)}>Следующее упражнение</button>}
-        <button className="secondary" type="button" onClick={() => {
-          if (!active.exercises.some((row) => row.reps.some((reps) => reps !== null))) { setMessage('Сохрани хотя бы один подход.'); return }
-          if (window.confirm('Завершить тренировку и сохранить отмеченные подходы?')) void save({ ...active, finished: true }, 'Тренировка завершена.')
-        }}>Завершить тренировку</button>
-      </div>
+      <ol className="list-decimal ps-6">{(exercisePrograms[active.kind][exerciseIndex]?.name === exercise.name ? setup[active.kind][exerciseIndex] ?? [exercise.technique] : [exercise.technique]).map((step) => <li key={step}>{step}</li>)}</ol>
+      <p>Ориентир · {exercise.target} повторений.</p>
+      <label>Сколько получилось<input name="reps" type="number" min="0" max="200" required /></label>
+      <button className="action" disabled={busy}>Записать подход</button>
+      <button className="secondary" type="button" disabled={busy} onClick={() => { if (window.confirm('Завершить и оставить записанные подходы?')) void finish() }}>Закончить раньше</button>
     </form>}
-    <p role="status" className="section-gap">{message}</p>
+    {active && !exercise && <section className="panel form-grid"><h2>Все подходы записаны</h2><button className="action" disabled={busy} onClick={() => void finish()}>Завершить тренировку</button></section>}
+    <p className="section-gap muted">При боли в груди, головокружении или необычной одышке остановитесь.</p>
+    <p role="status">{message}</p>
     <section className="panel section-gap"><h2>История</h2>
-      {history.filter((row) => row.finished).length === 0 ? <p className="muted">Завершённых тренировок пока нет.</p> :
-        <ul className="record-list">{history.filter((row) => row.finished).map((row) => <li key={row.id}>
-          <details><summary>{dateLabel(row.date)} · программа {row.kind}</summary><ul>{row.exercises.map((item, index) => <li key={index}>{item.name} · {item.reps.map((reps) => reps ?? '—').join(' / ')}</li>)}</ul></details>
-        </li>)}</ul>}
+      {history.some((row) => row.finished) ? <ul className="record-list">{history.filter((row) => row.finished).map((row) => <li key={row.id}>
+        <details><summary>{dateLabel(row.date)} · программа {row.kind}</summary><ul>{row.exercises.map((item, index) => <li key={index}>{item.name} · {item.reps.map((reps) => reps ?? '—').join(' / ')}</li>)}</ul></details>
+      </li>)}</ul> : <p className="muted">Завершённых тренировок пока нет.</p>}
     </section>
   </>
 }

@@ -91,6 +91,7 @@ const references: [string, number, number, number, number][] = [
   ['Рис', 365, 7.1, 0.7, 80],
   ['Авокадо', 160, 2, 14.7, 8.5],
   ['Лосось', 208, 20.4, 13.4, 0],
+  ['Греческий йогурт, без сахара', 59, 10.2, 0.4, 3.6],
 ]
 
 export const referenceProducts: Product[] = references.map(([name, calories, protein, fat, carbohydrates], index) => ({

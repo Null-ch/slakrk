@@ -2,7 +2,7 @@ import { Activity, CalendarDays, Dumbbell, Footprints, Scale, Utensils } from 'l
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { db, defaultProfile } from '../db/database'
-import { menuForDate } from '../data/meals'
+import { plannedMenu } from '../domain/personalPlan'
 import { calculateBmi } from '../domain/calculations'
 import { localDate } from '../domain/dates'
 import { mealKinds, nutrientKeys, nutrientLabels, nutritionNumber, scaleNutrients, sumNutrients } from '../domain/nutrition'
@@ -22,10 +22,10 @@ export function Dashboard() {
   const bmi = calculateBmi(currentWeight, profile.heightCm)
   const active = activeDayNumber(days, profile.programDays)
   const day = days.find(({ number }) => number === active)
-  const plan = program && active ? planForDay(active) : undefined
+  const plan = program && active ? planForDay(active, profile.autoPlan) : undefined
   const closed = days.filter((entry) => entry.number <= profile.programDays && isClosed(entry)).length
   const totals = sumNutrients(meals.map((entry) => scaleNutrients(entry.per100g, entry.grams / 100)))
-  const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? menuForDate(today)
+  const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? plannedMenu(today, profile.autoPlan ? profile.goals.calories : undefined)
 
   return <>
     <header className="page-heading">
@@ -66,7 +66,7 @@ export function Dashboard() {
         <h2 id="activity-heading"><Dumbbell aria-hidden="true" /> План активности</h2>
         {plan ? <>
           <p>{plan.kind ? 'Силовая ' + plan.kind : plan.minutes ? 'Силовых сегодня нет' : 'День отдыха'}</p>
-          {plan.minutes && <p className="activity-row"><Footprints size={20} aria-hidden="true" /> {day?.minutes ?? plan.minutes} мин · {day?.speed ?? plan.speed} км/ч · {day?.incline ?? plan.incline}%</p>}
+          {plan.minutes && <p className="activity-row"><Footprints size={20} aria-hidden="true" /> {day?.minutes ?? plan.minutes} мин · {day?.speed ?? plan.speed}{!day?.speed && profile.autoPlan ? '' : ' км/ч'} · {day?.incline ?? plan.incline}%</p>}
           <ul className="my-3">{taskKeys.filter((key) => key === 'nutrition' || key === 'weight' || (key === 'walking' && Boolean(plan.minutes)) || (key === 'workout' && Boolean(plan.kind))).map((key) => <li key={key}>{day?.tasks[key] ? '✓' : '○'} {taskNames[key]}</li>)}</ul>
         </> : <p className="muted">{program ? 'Все дни программы закрыты.' : 'План появится после старта программы.'}</p>}
         <div className="inline-actions section-gap"><Link className="secondary" to="/workouts">Тренировки</Link><Link className="secondary" to="/treadmill">Дорожка</Link></div>

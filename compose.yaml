@@ -3,4 +3,8 @@ services:
     build: .
     ports:
       - "127.0.0.1:${APP_PORT:-18080}:8080"
+    volumes:
+      - accounts:/data
     restart: unless-stopped
+volumes:
+  accounts:

@@ -7,13 +7,14 @@ import { activeDayNumber, daySchema, isClosed, planForDay, taskKeys, taskNames, 
 export function Calendar() {
   const program = useLiveQuery(() => db.programs.get('program'))
   const days = useLiveQuery(() => db.days.toArray(), [], [])
-  const length = useLiveQuery(() => db.profiles.get('profile'))?.programDays ?? defaultProfile.programDays
+  const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
+  const length = profile.programDays
   const [selected, setSelected] = useState<number>()
   const [message, setMessage] = useState('')
   const active = activeDayNumber(days, length)
   const number = selected ?? active
   const entry = days.find((day) => day.number === number)
-  const activity = number ? planForDay(number) : undefined
+  const activity = number ? planForDay(number, profile.autoPlan) : undefined
   const today = localDate()
 
   async function start() {
@@ -57,7 +58,7 @@ export function Calendar() {
           <label key={key} className="!flex items-center"><input className="!w-5" type="checkbox" name={key} defaultChecked={entry?.tasks[key]} />{taskNames[key]}{key === 'weight' ? ' (по желанию)' : ''}</label>)}
         {activity.minutes && <>
           <label>Ходьба, мин<input name="minutes" defaultValue={entry?.minutes ?? activity.minutes} /></label>
-          <label>Скорость, км/ч<input name="speed" defaultValue={entry?.speed ?? activity.speed} /></label>
+          <label>Темп ходьбы<input name="speed" defaultValue={entry?.speed ?? activity.speed} /></label>
           <label>Наклон, %<input name="incline" defaultValue={entry?.incline ?? activity.incline} /></label>
           <p className="muted">При сильной усталости снизь нагрузку. При боли остановись.</p>
         </>}

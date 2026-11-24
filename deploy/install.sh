@@ -5,14 +5,13 @@ umask 027
 domain=stop-jir.gncp.work
 app=/opt/stop-jir
 archive=/root/.stop-jir-release.tar
-secret=/root/.stop-jir-owner
+seed=/root/.stop-jir-accounts
 site=/etc/nginx/sites-available/$domain
 enabled=/etc/nginx/sites-enabled/$domain
-auth=/etc/nginx/stop-jir.htpasswd
 cert=/etc/letsencrypt/live/$domain
 port=18082
 
-trap 'rm -f -- "$secret" "$archive"' EXIT
+trap 'rm -f -- "$seed" "$archive"' EXIT
 if [[ ! -r "$cert/fullchain.pem" || ! -r "$cert/privkey.pem" ]]; then
   echo "Certificate not found for $domain" >&2
   exit 1
@@ -21,13 +20,6 @@ openssl x509 -in "$cert/fullchain.pem" -noout -checkhost "$domain"
 install -d -m 0750 "$app"
 install -d -m 0755 "/var/www/$domain/.well-known/acme-challenge"
 tar -xf "$archive" -C "$app"
-if [[ ! -s "$auth" ]]; then
-  [[ -s "$secret" ]]
-  hash=$(openssl passwd -6 -stdin < "$secret")
-  printf 'owner:%s\n' "$hash" > "$auth"
-  chown root:www-data "$auth"
-  chmod 0640 "$auth"
-fi
 
 cd "$app"
 APP_PORT=$port docker compose up --build -d
@@ -36,6 +28,9 @@ for attempt in {1..15}; do
   sleep 1
 done
 curl -fsS -o /dev/null "http://127.0.0.1:$port/more"
+if [[ -s "$seed" ]]; then
+  APP_PORT=$port docker compose exec -T app node --experimental-strip-types server/seed.mts < "$seed"
+fi
 
 backup=$(mktemp)
 if [[ -e "$site" ]]; then cp -p "$site" "$backup"; had_site=1; else had_site=0; fi
@@ -56,13 +51,13 @@ server {
     ssl_certificate $cert/fullchain.pem;
     ssl_certificate_key $cert/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
-    auth_basic "Stop Jir";
-    auth_basic_user_file $auth;
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy same-origin always;
     location / {
         proxy_set_header Host \$host;
         proxy_set_header Authorization "";
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_pass http://127.0.0.1:$port;
     }
 }
@@ -77,15 +72,12 @@ fi
 rm -f -- "$backup"
 guest_status=''
 for attempt in {1..15}; do
-  guest_status=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/" 2>/dev/null || true)
+  guest_status=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/api/session" 2>/dev/null || true)
   if [[ "$guest_status" == 401 ]]; then break; fi
   sleep 1
 done
 test "$guest_status" = 401
-if [[ -s "$secret" ]]; then
-  actual=$(printf 'user = "owner:%s"\n' "$(cat "$secret")" | curl --config - -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/")
-  test "$actual" = 200
-fi
+curl -fsS -o /dev/null --resolve "$domain:443:127.0.0.1" "https://$domain/"
 install -d /etc/letsencrypt/renewal-hooks/deploy
 cat > /etc/letsencrypt/renewal-hooks/deploy/stop-jir-nginx <<'HOOK'
 #!/bin/sh

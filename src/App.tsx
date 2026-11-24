@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 import { db } from './db/database'
+import { AccountControls } from './pages/Account'
 import { Settings } from './pages/Settings'
 import { Weight } from './pages/Weight'
 import { Nutrition } from './pages/Nutrition'
@@ -18,7 +19,7 @@ import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import { Dashboard } from './pages/Dashboard'
 import { More } from './pages/More'
 
-export function App() {
+export function App({ accountName }: { accountName: string }) {
   const profile = useLiveQuery(() => db.profiles.get('profile'))
   useEffect(() => { document.documentElement.dataset.theme = profile?.theme ?? 'light' }, [profile?.theme])
   return (
@@ -30,7 +31,7 @@ export function App() {
         <ReminderBanner />
         <Suspense fallback={<p role="status">Загрузка…</p>}><Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/more" element={<More />} />
+          <Route path="/more" element={<><More /><section className="panel section-gap"><h2>Личный кабинет</h2><AccountControls name={accountName} /></section></>} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/weight" element={<Weight />} />
           <Route path="/nutrition" element={<Nutrition />} />

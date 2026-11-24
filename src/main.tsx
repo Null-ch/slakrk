@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
+import { AccountGate } from './pages/Account'
 import './styles.css'
 import './forms.css'
 
@@ -11,7 +12,7 @@ if (!root) throw new Error('Корневой элемент приложения
 createRoot(root).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <AccountGate>{(account) => <App accountName={account.name} />}</AccountGate>
     </BrowserRouter>
   </StrictMode>,
 )

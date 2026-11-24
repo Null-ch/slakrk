@@ -14,7 +14,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
     const data = new FormData(event.currentTarget)
     const value = (key: string) => String(data.get(key) ?? '')
     const result = profileSchema.safeParse({
-      id: profile.id, sex: value('sex'), ageYears: Number(value('ageYears')),
+      ...profile, id: profile.id, sex: value('sex'), ageYears: Number(value('ageYears')),
       heightCm: Number(value('heightCm')), startingWeightKg: Number(value('startingWeightKg')),
       activity: value('activity'), averageStepsUpTo: Number(value('averageStepsUpTo')),
       experience: value('experience'), medicalRestrictions: value('medicalRestrictions').trim() || null,
