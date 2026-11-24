@@ -26,8 +26,8 @@ export function Workouts() {
 
   function startTimer(duration: number) { setSeconds(duration); setTimer(Date.now() + duration * 1000) }
 
-  async function save(value: Workout) {
-    try { await db.workouts.put(workoutSchema.parse(value)); setMessage('Сохранено.'); return true }
+  async function save(value: Workout, success: string) {
+    try { await db.workouts.put(workoutSchema.parse(value)); setMessage(success); return true }
     catch { setMessage('Проверьте введённые данные.'); return false }
   }
 
@@ -39,7 +39,7 @@ export function Workouts() {
       restSeconds: Number(fields.get('rest')),
       exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: Array<null>(Number(fields.get('sets'))).fill(null) })),
     }
-    if (await save(record)) { setActiveId(record.id); setStep(0); setTimer(undefined) }
+    if (await save(record, 'Тренировка начата.')) { setActiveId(record.id); setStep(0); setTimer(undefined) }
   }
 
   async function saveExercise(event: FormEvent<HTMLFormElement>) {
@@ -49,7 +49,7 @@ export function Workouts() {
     const next = { name: String(fields.get('name')), technique: String(fields.get('technique')), target: String(fields.get('target')),
       reps: fields.getAll('reps').map((value) => value === '' ? null : Number(value)),
     }
-    await save({ ...active, exercises: active.exercises.map((row, index) => index === step ? next : row) })
+    await save({ ...active, exercises: active.exercises.map((row, index) => index === step ? next : row) }, 'Подходы сохранены.')
   }
 
   return <>
@@ -86,7 +86,7 @@ export function Workouts() {
         {step + 1 < active.exercises.length && <button className="secondary" type="button" onClick={() => setStep(step + 1)}>Следующее упражнение</button>}
         <button className="secondary" type="button" onClick={() => {
           if (!active.exercises.some((row) => row.reps.some((reps) => reps !== null))) { setMessage('Сохрани хотя бы один подход.'); return }
-          if (window.confirm('Завершить тренировку и сохранить отмеченные подходы?')) void save({ ...active, finished: true })
+          if (window.confirm('Завершить тренировку и сохранить отмеченные подходы?')) void save({ ...active, finished: true }, 'Тренировка завершена.')
         }}>Завершить тренировку</button>
       </div>
     </form>}
