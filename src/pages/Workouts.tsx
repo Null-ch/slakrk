@@ -116,7 +116,17 @@ export function Workouts() {
     <p role="status">{message}</p>
     <section className="panel section-gap"><h2>История</h2>
       {history.some((row) => row.finished) ? <ul className="record-list">{history.filter((row) => row.finished).map((row) => <li key={row.id}>
-        <details><summary>{dateLabel(row.date)} · программа {row.kind}</summary><ul>{row.exercises.map((item, index) => <li key={index}>{item.name} · {item.reps.map((reps) => reps ?? '—').join(' / ')}</li>)}</ul></details>
+        <details><summary>{dateLabel(row.date)} · программа {row.kind}{row.minutes ? ` · ${row.minutes} мин` : ''}</summary>
+          <ul>{row.exercises.map((item, index) => <li key={index}>{item.name} · {item.reps.map((reps) => reps ?? '—').join(' / ')}</li>)}</ul>
+          <form className="form-grid section-gap" onSubmit={(event) => {
+            event.preventDefault()
+            const minutes = new FormData(event.currentTarget).get('minutes')
+            void save({ ...row, minutes: minutes ? Number(minutes) : undefined })
+          }}>
+            <label>Продолжительность силовой, мин<input name="minutes" type="number" min="1" max="180" step="1" defaultValue={row.minutes} /></label>
+            <button className="secondary" disabled={busy}>Сохранить длительность</button>
+          </form>
+        </details>
       </li>)}</ul> : <p className="muted">Завершённых тренировок пока нет.</p>}
     </section>
   </>

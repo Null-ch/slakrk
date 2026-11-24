@@ -6,6 +6,7 @@ import type { Walk, Workout } from '../domain/activity'
 import type { Program, ProgramDay, ShoppingItem } from '../domain/program'
 import type { Reminder } from '../domain/reminders'
 import { menuStyles } from '../domain/menuRotation'
+import { type IntakeConfirmation } from '../domain/energyBalance'
 import { activityLevels } from '../domain/personalPlan'
 import { initialNutritionGoals, initialProfile } from '../data/profile'
 
@@ -64,6 +65,7 @@ class AppDatabase extends Dexie {
   shopping!: EntityTable<ShoppingItem, 'id'>
   reminders!: EntityTable<Reminder, 'id'>
   menuOverrides!: EntityTable<MenuOverride, 'date'>
+  intakeConfirmations!: EntityTable<IntakeConfirmation, 'date'>
 
   constructor(accountId: string) {
     super('stop-jir-account-' + accountId)
@@ -82,6 +84,7 @@ class AppDatabase extends Dexie {
       const ids = new Set(existing.map((product) => product.id))
       await table.bulkAdd(referenceProducts.slice(15).filter(({ id, name }) => !ids.has(id) && !names.has(name)))
     })
+    this.version(9).stores({ intakeConfirmations: 'date' })
     this.on('populate', async () => {
       await this.products.bulkAdd(referenceProducts)
     })

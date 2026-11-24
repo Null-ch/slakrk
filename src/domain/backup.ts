@@ -3,6 +3,7 @@ import { db, profileSchema, weightSchema } from '../db/database'
 import { mealSchema, productSchema, recipeSchema } from './nutrition'
 import { walkSchema, workoutSchema } from './activity'
 import { daySchema, programSchema, shoppingSchema } from './program'
+import { intakeConfirmationSchema } from './energyBalance'
 import { reminderSchema } from './reminders'
 import { menuOverrideSchema } from '../data/meals'
 
@@ -12,16 +13,17 @@ const backupSchema = z.object({
   workouts: z.array(workoutSchema), walks: z.array(walkSchema),
   programs: z.array(programSchema).max(1), days: z.array(daySchema), shopping: z.array(shoppingSchema),
   reminders: z.array(reminderSchema).default([]), menuOverrides: z.array(menuOverrideSchema).default([]),
+  intakeConfirmations: z.array(intakeConfirmationSchema).default([]),
 })
 type Backup = z.infer<typeof backupSchema>
 
 export async function exportBackup(): Promise<Backup> {
   return db.transaction('r', db.tables, async () => {
-    const [profile, weights, products, meals, recipes, workouts, walks, programs, days, shopping, reminders, menuOverrides] = await Promise.all([
+    const [profile, weights, products, meals, recipes, workouts, walks, programs, days, shopping, reminders, menuOverrides, intakeConfirmations] = await Promise.all([
       db.profiles.get('profile'), db.weights.toArray(), db.products.toArray(), db.meals.toArray(), db.recipes.toArray(),
-      db.workouts.toArray(), db.walks.toArray(), db.programs.toArray(), db.days.toArray(), db.shopping.toArray(), db.reminders.toArray(), db.menuOverrides.toArray(),
+      db.workouts.toArray(), db.walks.toArray(), db.programs.toArray(), db.days.toArray(), db.shopping.toArray(), db.reminders.toArray(), db.menuOverrides.toArray(), db.intakeConfirmations.toArray(),
     ])
-    return backupSchema.parse({ version: 1, profile, weights, products, meals, recipes, workouts, walks, programs, days, shopping, reminders, menuOverrides })
+    return backupSchema.parse({ version: 1, profile, weights, products, meals, recipes, workouts, walks, programs, days, shopping, reminders, menuOverrides, intakeConfirmations })
   })
 }
 
@@ -30,7 +32,7 @@ export function readBackup(text: string): Backup {
   const uniqueness: (string | number)[][] = [
     data.weights.map(({ date }) => date), data.products.map(({ id }) => id), data.meals.map(({ id }) => id),
     data.recipes.map(({ id }) => id), data.workouts.map(({ id }) => id), data.walks.map(({ id }) => id),
-    data.days.map(({ number }) => number), data.shopping.map(({ id }) => id), data.reminders.map(({ id }) => id), data.menuOverrides.map(({ date }) => date),
+    data.days.map(({ number }) => number), data.shopping.map(({ id }) => id), data.reminders.map(({ id }) => id), data.menuOverrides.map(({ date }) => date), data.intakeConfirmations.map(({ date }) => date),
   ]
   if (uniqueness.some((keys) => new Set(keys).size !== keys.length)) throw new Error('Дублирующиеся ключи')
   return data
@@ -51,6 +53,7 @@ export async function importBackup(data: Backup): Promise<void> {
     await db.shopping.bulkAdd(data.shopping)
     await db.reminders.bulkAdd(data.reminders)
     await db.menuOverrides.bulkAdd(data.menuOverrides)
+    await db.intakeConfirmations.bulkAdd(data.intakeConfirmations)
   })
 }
 

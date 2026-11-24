@@ -5,6 +5,7 @@ export const exerciseSchema = z.object({ name: z.string().trim().min(1), techniq
 export const workoutSchema = z.object({
   id: z.string().min(1), date: z.iso.date(), kind: z.enum(['А', 'Б']), finished: z.boolean(),
   restSeconds: z.number().int().positive(),
+  minutes: z.number().int().min(1).max(180).optional(),
   exercises: z.array(exerciseSchema.extend({ reps: z.array(z.number().int().nonnegative().nullable()).nonempty() })).nonempty(),
 })
 export const walkSchema = z.object({

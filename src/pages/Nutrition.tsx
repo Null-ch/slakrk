@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { db, defaultProfile } from '../db/database'
 import { addDays, dateLabel, localDate } from '../domain/dates'
 import { referenceProducts } from '../data/meals'
+import { mealSignature } from '../domain/energyBalance'
 import { plannedMenu } from '../domain/personalPlan'
 import { mealKinds, nutrientKeys, nutrientLabels, nutritionNumber, scaleNutrients, sumNutrients, type Meal } from '../domain/nutrition'
 
@@ -13,6 +14,8 @@ export function Nutrition() {
   const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
   const products = useLiveQuery(() => db.products.toArray(), [], [])
   const entries = useLiveQuery(() => db.meals.where('date').equals(date).toArray(), [date], [])
+  const confirmation = useLiveQuery(() => db.intakeConfirmations.get(date), [date])
+  const confirmed = confirmation?.signature === mealSignature(entries)
   const override = useLiveQuery(() => db.menuOverrides.get(date), [date])
   const menu = override?.meals ?? plannedMenu(date, (profile.autoPlan || profile.appliedMenu) ? profile.goals.calories : undefined, profile.appliedMenu)
   const recorded = new Map(entries.map((item) => [item.id, item]))
@@ -32,6 +35,20 @@ export function Nutrition() {
   const currentIds = new Set(entries.map(({ id }) => id))
   const plannedIds = new Set(plannedRows.flat().map(({ id }) => id))
   const otherEntries = entries.filter(({ id }) => !plannedIds.has(id))
+
+  async function confirmIntake() {
+    if (date > localDate() || entries.length === 0) return
+    try {
+      await db.transaction('rw', db.meals, db.intakeConfirmations, async () => {
+        const current = await db.meals.where('date').equals(date).toArray()
+        const signature = mealSignature(entries)
+        if (mealSignature(current) !== signature) throw new Error('Дневник изменился')
+        if (confirmed) await db.intakeConfirmations.delete(date)
+        else await db.intakeConfirmations.put({ date, signature })
+      })
+      setMessage('')
+    } catch { setMessage('Дневник изменился. Проверьте записи и повторите действие.') }
+  }
 
   async function mark(rows: Meal[], remove: boolean) {
     setSaving(true)
@@ -58,6 +75,10 @@ export function Nutrition() {
       <p>{complete ? 'В меню' : 'Известная часть меню'} · ≈{nutritionNumber.format(planned.calories)} ккал</p>
       {profile.estimatedMaintenance && <p className="muted">Расчётный расход · {profile.estimatedMaintenance} ккал · {profile.estimatedMaintenance > profile.goals.calories ? `дефицит ≈${profile.estimatedMaintenance - profile.goals.calories} ккал` : 'без дефицита'}</p>}
       <details><summary>Белки, жиры и углеводы</summary>{nutrientKeys.slice(1).map((key) => <p key={key}>{nutrientLabels[key]} · {nutritionNumber.format(totals[key])} / {nutritionNumber.format(profile.goals[key])}</p>)}</details>
+      {date <= localDate() && entries.length > 0 && <>
+        <button className="secondary" disabled={saving} onClick={() => void confirmIntake()}>{confirmed ? 'Снять подтверждение дня' : 'Подтвердить полное питание за день'}</button>
+        <p className="muted">{confirmed ? 'День учтён в оценке энергобаланса.' : 'Подтвердите, если все калории за день отражены в дневнике.'}</p>
+      </>}
       <p role="status">{message}</p>
     </section>
     {plannedRows.map((items, group) => {
