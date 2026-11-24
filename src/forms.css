@@ -10,6 +10,23 @@
   .action { background: #174c36; color: white; font-weight: 600; }
   .secondary { background: #e4f2e8; color: #174c36; }
   .section-gap { margin-top: 1rem; }
+  .settings-save-bar {
+    position: sticky; bottom: calc(4.5rem + env(safe-area-inset-bottom)); z-index: 2;
+    display: grid; gap: 0.5rem; padding: 0.75rem; border-radius: 0.9rem;
+    background: #fff; border: 1px solid #dce5dd; box-shadow: 0 4px 20px #17261e20;
+  }
+  .settings-feedback { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.875rem; color: #53665b; }
+  .settings-feedback svg, .settings-toast svg { flex: none; }
+  .settings-toast {
+    position: fixed; top: calc(0.75rem + env(safe-area-inset-top)); left: 50%; z-index: 20;
+    transform: translateX(-50%); width: min(26rem, calc(100% - 2rem));
+    display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.9rem 1rem;
+    color: #fff; background: #175737; border-radius: 0.85rem; box-shadow: 0 4px 20px #10111445;
+    pointer-events: none;
+  }
+  .settings-toast[data-kind='error'] { background: #922f2f; }
+  .settings-feedback[data-kind='success'] { color: #175737; }
+  .settings-feedback[data-kind='error'] { color: #a32929; }
   .record-list > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.65rem; padding: 0.75rem 0; border-bottom: 1px solid #889c8d; }
   .inline-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
   .section-links { display: grid; gap: 0.5rem; }
@@ -21,5 +38,9 @@
   :root[data-theme='dark'] .hero { background: #22252d; }
   :root[data-theme='dark'] .hero-icon { background: #30343d; }
   :root[data-theme='dark'] .secondary { background: #2a2d35; color: #f1f2f4; }
+  :root[data-theme='dark'] .settings-save-bar { background: #191b20; border-color: #373a43; }
+  :root[data-theme='dark'] .settings-feedback { color: #bbc0cc; }
+  :root[data-theme='dark'] .settings-feedback[data-kind='success'] { color: #92e6b0; }
+  :root[data-theme='dark'] .settings-feedback[data-kind='error'] { color: #ffc0c0; }
   :root[data-theme='dark'] .macro-list span { color: #bbc0cc; }
 }
