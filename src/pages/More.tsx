@@ -1,4 +1,9 @@
-import { initialProfile } from '../data/profile'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { Link } from 'react-router-dom'
+import { db, defaultProfile } from '../db/database'
+
+export function More() {
+const initialProfile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
 
 const rows = [
   ['Пол', initialProfile.sex],
@@ -10,7 +15,6 @@ const rows = [
   ['Медицинские ограничения', initialProfile.medicalRestrictions ?? 'Не указаны'],
 ]
 
-export function More() {
   return (
     <>
       <header className="page-heading"><h1>Ещё</h1></header>
@@ -21,7 +25,14 @@ export function More() {
             <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
           ))}
         </dl>
-        <p className="note">Редактирование профиля появится на втором этапе.</p>
+                <div className="section-links section-gap">
+          <Link className="secondary" to="/settings">Настройки профиля</Link>
+          <Link className="secondary" to="/weight">Дневник веса</Link>
+          <Link className="secondary" to="/calendar">Календарь</Link>
+          <Link className="secondary" to="/shopping">Покупки</Link>
+          <Link className="secondary" to="/reminders">Напоминания</Link>
+          <Link className="secondary" to="/backup">Резервные копии</Link>
+        </div>
       </section>
     </>
   )

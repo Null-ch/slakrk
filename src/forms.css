@@ -1,0 +1,22 @@
+@layer components {
+  .form-grid { display: grid; gap: 0.85rem; }
+  .form-grid h2 { margin-bottom: 0; }
+  .form-grid label { display: grid; gap: 0.25rem; }
+  .form-grid input, .form-grid select, .form-grid textarea {
+    width: 100%; min-width: 0; min-height: 44px; padding: 0.5rem 0.65rem;
+    border: 1px solid #889c8d; border-radius: 0.7rem; background: transparent;
+  }
+  .action, .secondary { padding: 0.6rem 0.9rem; border-radius: 0.7rem; cursor: pointer; min-height: 44px; }
+  .action { background: #174c36; color: white; font-weight: 600; }
+  .secondary { background: #e4f2e8; color: #174c36; }
+  .section-gap { margin-top: 1rem; }
+  .record-list > li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.65rem; padding: 0.75rem 0; border-bottom: 1px solid #889c8d; }
+  .inline-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+  .section-links { display: grid; gap: 0.5rem; }
+  .section-links a { display: block; }
+  :root[data-theme='dark'] { color-scheme: dark; background: #101b15; color: #edf7ef; }
+  :root[data-theme='dark'] :is(.app-header, .bottom-nav, .panel) { background: #1a2a20; border-color: #3a5041; }
+  :root[data-theme='dark'] :is(.muted, .note, .eyebrow, .metric small, .activity-row, .bottom-nav a:not(.active)) { color: #b6cfbe; }
+  :root[data-theme='dark'] .macro-list li { background: #253a2d; }
+  :root[data-theme='dark'] .macro-list span { color: #b6cfbe; }
+}
