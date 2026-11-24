@@ -71,13 +71,14 @@ if ! nginx -t || ! systemctl reload nginx; then
 fi
 rm -f -- "$backup"
 guest_status=''
+page_status=''
 for attempt in {1..15}; do
   guest_status=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/api/session" 2>/dev/null || true)
-  if [[ "$guest_status" == 401 ]]; then break; fi
+  page_status=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/" 2>/dev/null || true)
+  if [[ "$guest_status" == 401 && "$page_status" == 200 ]]; then break; fi
   sleep 1
 done
-test "$guest_status" = 401
-curl -fsS -o /dev/null --resolve "$domain:443:127.0.0.1" "https://$domain/"
+[[ "$guest_status" == 401 && "$page_status" == 200 ]]
 install -d /etc/letsencrypt/renewal-hooks/deploy
 cat > /etc/letsencrypt/renewal-hooks/deploy/stop-jir-nginx <<'HOOK'
 #!/bin/sh

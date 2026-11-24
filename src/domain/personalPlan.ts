@@ -17,7 +17,7 @@ export function estimatePlan(input: PlanInput) {
   const bmi = calculateBmi(input.startingWeightKg, input.heightCm)
   const floor = input.sex === 'Мужской' ? 1600 : 1400
   const reduction = bmi >= 25 ? Math.min(300, Math.floor(maintenance * 0.1), Math.max(0, maintenance - floor)) : 0
-  return { maintenance, calories: maintenance - reduction, reduction, bmi }
+  return { maintenance, calories: Math.max(floor, maintenance - reduction), reduction, bmi }
 }
 
 type Ingredient = MenuOverride['meals'][number][number]
