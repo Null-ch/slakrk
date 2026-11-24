@@ -1,9 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState, type FormEvent } from 'react'
+import { lazy, Suspense, useState, type FormEvent } from 'react'
 import { db } from '../db/database'
 import { monday, walkSchema } from '../domain/activity'
 import { addDays, dateLabel, localDate } from '../domain/dates'
 import { nutritionNumber } from '../domain/nutrition'
+
+const Chart = lazy(() => import('./Progress').then((module) => ({ default: module.Chart })))
 
 export function Treadmill() {
   const rows = useLiveQuery(() => db.walks.orderBy('date').reverse().toArray(), [], [])
@@ -12,6 +14,8 @@ export function Treadmill() {
   const week = rows.filter(({ date }) => date >= current && date <= localDate())
   const lastWeek = rows.filter(({ date }) => date >= addDays(current, -7) && date < current)
   const minutes = (records: typeof rows) => records.reduce((sum, row) => sum + row.minutes, 0)
+  const distance = (records: typeof rows) => nutritionNumber.format(records.reduce((sum, row) => sum + row.distance, 0))
+  const series = [...new Set(rows.map(({ date }) => date))].sort().map((date) => ({ date, 'Минуты': minutes(rows.filter((row) => row.date === date)) }))
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,7 +34,7 @@ export function Treadmill() {
 
   return <>
     <header className="page-heading"><h1>Беговая дорожка</h1></header>
-    <section className="panel"><h2>На этой неделе</h2><p>{nutritionNumber.format(minutes(week))} мин · {nutritionNumber.format(week.reduce((sum, row) => sum + row.distance, 0))} км</p><p className="muted">Предыдущая неделя · {nutritionNumber.format(minutes(lastWeek))} мин</p></section>
+    <section className="panel"><h2>На этой неделе</h2><p>{nutritionNumber.format(minutes(week))} мин · {distance(week)} км</p><p className="muted">Предыдущая неделя · {nutritionNumber.format(minutes(lastWeek))} мин · {distance(lastWeek)} км</p></section>
     <form className="panel form-grid section-gap" onSubmit={save}>
       <h2>Записать ходьбу</h2>
       <label>Дата<input name="date" type="date" defaultValue={localDate()} max={localDate()} required /></label>
@@ -42,6 +46,7 @@ export function Treadmill() {
       <label>Комментарий<textarea name="comment" /></label>
       <button className="action">Сохранить ходьбу</button><p role="status">{message}</p>
     </form>
+    <Suspense fallback={null}><Chart title="Продолжительность ходьбы" rows={series} series={['Минуты']} /></Suspense>
     <section className="panel section-gap"><h2>История ходьбы</h2>
       {rows.length === 0 ? <p className="muted">Записей пока нет.</p> : <ul className="record-list">{rows.map((row) => <li key={row.id}>
         <div><strong>{dateLabel(row.date)} · {row.minutes} мин</strong><p>{nutritionNumber.format(row.distance)} км · {row.speed} км/ч · наклон {row.incline}% · {row.effort}</p>{row.comment && <p>{row.comment}</p>}</div>

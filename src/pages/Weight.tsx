@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState, type FormEvent } from 'react'
+import { lazy, Suspense, useState, type FormEvent } from 'react'
 import { db, defaultProfile, weightSchema, type Weight as Measurement } from '../db/database'
 import { addDays, dateLabel, localDate } from '../domain/dates'
 
+const Chart = lazy(() => import('./Progress').then((module) => ({ default: module.Chart })))
 const number = new Intl.NumberFormat('ru', { maximumFractionDigits: 2 })
 
 export function Weight() {
@@ -56,6 +57,7 @@ export function Weight() {
       {editing && <button type="button" className="secondary" onClick={() => setEditing(undefined)}>Отменить редактирование</button>}
       <p role="status">{message}</p>
     </form>
+    <Suspense fallback={null}><Chart title="Динамика веса" series={['Вес, кг']} rows={[...entries].reverse().map(({ date, kg }) => ({ date, 'Вес, кг': kg }))} /></Suspense>
     <section className="panel section-gap">
       <h2>История</h2>
       {recent.length > 0 && <p>Среднее за 7 дней · {number.format(recent.reduce((sum, row) => sum + row.kg, 0) / recent.length)} кг</p>}

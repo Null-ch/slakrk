@@ -75,7 +75,13 @@ if ! nginx -t || ! systemctl reload nginx; then
   exit 1
 fi
 rm -f -- "$backup"
-test "$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/")" = 401
+guest_status=''
+for attempt in {1..15}; do
+  guest_status=$(curl -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/" 2>/dev/null || true)
+  if [[ "$guest_status" == 401 ]]; then break; fi
+  sleep 1
+done
+test "$guest_status" = 401
 if [[ -s "$secret" ]]; then
   actual=$(printf 'user = "owner:%s"\n' "$(cat "$secret")" | curl --config - -sS -o /dev/null -w '%{http_code}' --resolve "$domain:443:127.0.0.1" "https://$domain/")
   test "$actual" = 200
