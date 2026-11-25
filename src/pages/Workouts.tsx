@@ -51,7 +51,7 @@ export function Workouts({ equipment = false }: { equipment?: boolean }) {
   async function start() {
     if (!preparing || !preview) return
     const kind = preparing
-    const record: Workout = { id: crypto.randomUUID(), date: today, kind, finished: false, restSeconds,
+    const record: Workout = { id: crypto.randomUUID(), date: today, kind, finished: false, restSeconds, startedAt: Date.now(),
       equipment: equipment ? true : undefined,
       exercises: preview,
     }
@@ -69,7 +69,10 @@ export function Workouts({ equipment = false }: { equipment?: boolean }) {
   }
 
   async function finish() {
-    if (active && await save({ ...active, finished: true })) { clearTimer(); setMessage('Тренировка завершена.') }
+    if (!active) return
+    const minutes = active.minutes ?? (active.startedAt === undefined ? undefined :
+      Math.min(180, Math.max(1, Math.round((Date.now() - active.startedAt) / 60_000))))
+    if (await save({ ...active, finished: true, minutes })) { clearTimer(); setMessage('Тренировка завершена.') }
   }
 
   return <>

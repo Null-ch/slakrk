@@ -6,6 +6,7 @@ export const workoutSchema = z.object({
   id: z.string().min(1), date: z.iso.date(), kind: z.enum(['А', 'Б']), finished: z.boolean(),
   equipment: z.literal(true).optional(),
   restSeconds: z.number().int().positive(),
+  startedAt: z.number().int().nonnegative().optional(),
   minutes: z.number().int().min(1).max(180).optional(),
   exercises: z.array(exerciseSchema.extend({ reps: z.array(z.number().int().nonnegative().nullable()).nonempty() })).nonempty(),
 })
