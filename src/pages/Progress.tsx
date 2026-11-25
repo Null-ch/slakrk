@@ -32,7 +32,9 @@ export function Progress() {
   const length = profile.programDays
   const confirmations = useLiveQuery(() => db.intakeConfirmations.toArray(), [], [])
   const energy = energyBalanceDays({ profile, weights, meals, walks, workouts, confirmations, today })
-  const total = energy.reduce((sum, row) => sum + row.deficit, 0)
+  const confirmed = energy.filter((row) => row.confirmed)
+  const total = confirmed.reduce((sum, row) => sum + (row.deficit ?? 0), 0)
+  const treadmillTotal = energy.reduce((sum, row) => sum + row.treadmill, 0)
   const missing = energy.reduce((sum, row) => sum + row.missing, 0)
   const latest = [...weights].reverse().find(({ date }) => date <= today)
   const number = new Intl.NumberFormat('ru', { maximumFractionDigits: 2 })
@@ -56,20 +58,26 @@ export function Progress() {
     <section className="panel section-gap">
       <h2>Энергобаланс и вес</h2>
       <p>{latest ? `Изменение по весам от старта · ${signed.format(latest.kg - profile.startingWeightKg)} кг` : 'Добавьте взвешивание, чтобы увидеть фактическое изменение.'}</p>
-      {energy.length ? <>
+      {treadmillTotal > 0 && <p className="mt-3">Дорожка за всё время · ≈ {number.format(Math.round(treadmillTotal))} ккал</p>}
+      {confirmed.length ? <>
         <p className="mt-3">{total >= 0 ? 'Суммарный дефицит' : 'Суммарный профицит'} · ≈ {number.format(Math.round(Math.abs(total)))} ккал</p>
         <p>Условный эквивалент · {signed.format(-total / kcalPerKgEquivalent)} кг</p>
-        <p className="muted">Учтено дней с полным дневником: {energy.length}. Эквивалент показывает энергию баланса, а вес меняется также из-за воды и других факторов.</p>
-        {missing > 0 && <p className="muted">Пропущено в расчёте тренировок: {missing}. Укажите длительность силовой в истории. Для дорожки нужна скорость ходьбы и длительность до 240 минут.</p>}
-        <details className="section-gap"><summary>Расчёт по дням</summary>
+        <p className="muted">В сумме учтено дней с полным дневником: {confirmed.length}. Эквивалент показывает энергию баланса, а вес меняется также из-за воды и других факторов.</p>
+      </> : <p className="muted mt-3">Для суммарного дефицита подтвердите полную запись еды за день в разделе питания.</p>}
+      {energy.length > 0 && <>
+        {missing > 0 && <p className="muted">Силовые без длительности: {missing}. Укажите длительность в истории.</p>}
+        <details className="section-gap" open><summary>Расчёт по дням</summary>
           <ul className="record-list">{energy.map((row) => <li key={row.date}><div>
             <strong>{dateLabel(row.date)}</strong>
-            <p>Еда ≈ {Math.round(row.calories)} ккал · базовый расход ≈ {row.baseline} ккал · тренировки ≈ {Math.round(row.training)} ккал</p>
-            <p>{row.deficit >= 0 ? 'Дефицит' : 'Профицит'} ≈ {Math.round(Math.abs(row.deficit))} ккал</p>
+            <p>Базовый расход ≈ {row.baseline} ккал · тренировки ≈ {Math.round(row.training)} ккал{row.treadmill > 0 && ` (дорожка ≈ ${Math.round(row.treadmill)} ккал)`}</p>
+            {row.calories !== null && <p>Еда ≈ {Math.round(row.calories)} ккал</p>}
+            {row.deficit === null
+              ? <p className="muted">Добавьте еду за день для оценки баланса.</p>
+              : <p>{row.confirmed ? '' : 'Предварительно · '}{row.deficit >= 0 ? 'дефицит' : 'профицит'} ≈ {Math.round(Math.abs(row.deficit))} ккал</p>}
           </div></li>)}</ul>
         </details>
-        <p className="muted mt-3">Базовый расход оценён для малоподвижного дня. Расход дорожки рассчитан по скорости и времени для ровной поверхности.</p>
-      </> : <p className="muted mt-3">Для расчёта подтвердите полную запись еды за день в разделе питания.</p>}
+        <p className="muted mt-3">Базовый расход оценён для малоподвижного дня. Расход дорожки учитывает скорость, время, наклон и вес.</p>
+      </>}
       <Link to="/nutrition" className="secondary inline-block section-gap">Открыть питание</Link>
     </section>
     <Chart title="Вес и недельная тенденция" rows={weightRows} series={['Вес, кг', 'Среднее за 7 дней, кг']} />

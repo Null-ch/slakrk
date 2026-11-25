@@ -14,14 +14,16 @@ export function mealSignature(meals: Meal[]): string {
   return JSON.stringify(meals.map(({ id, name, grams, per100g }) => JSON.stringify([id, name, grams, per100g.calories])).sort())
 }
 
-// 2024 Adult Compendium (17340–17367). Use level treadmill estimates at recorded pace.
-const treadmill: readonly [upperSpeed: number, met: number][] = [
-  [1.6, 2.1], [1.9, 2.3], [3.2, 2.8], [4, 3], [4.8, 3.5],
-  [5.6, 3.8], [6.4, 4.8], [7.2, 5.8], [8, 6.8], [8.91, 8.3],
-]
-
 function activityEnergy(met: number, minutes: number, kg: number) {
   return (met - 1) * 3.5 * kg / 200 * minutes
+}
+
+function treadmillEnergy(walk: Walk, kg: number) {
+  // ACSM walking equation, with resting oxygen consumption already subtracted.
+  const metersPerMinute = walk.speed * 1000 / 60
+  const grade = (walk.incline ?? 0) / 100
+  const netOxygen = metersPerMinute * (0.1 + 1.8 * grade)
+  return netOxygen * kg * walk.minutes / 200
 }
 
 function byDate<T extends { date: string }>(rows: T[]) {
@@ -44,26 +46,27 @@ export function energyBalanceDays({
   const walksByDate = byDate(walks)
   const workoutsByDate = byDate(workouts.filter(({ finished }) => finished))
   const timeline = [...weights].sort((a, b) => b.date.localeCompare(a.date))
+  const signatures = new Map(confirmations.map(({ date, signature }) => [date, signature]))
+  const dates = [...new Set([...signatures.keys(), ...walksByDate.keys()])].sort().reverse()
 
-  return confirmations.flatMap(({ date, signature }) => {
+  return dates.flatMap((date) => {
     const intake = mealsByDate.get(date)
-    if (date > today || !intake?.length || mealSignature(intake) !== signature) return []
+    const confirmed = Boolean(intake?.length && mealSignature(intake) === signatures.get(date))
+    const dayWalks = walksByDate.get(date) ?? []
+    if (date > today || (!confirmed && !dayWalks.length)) return []
     const kg = timeline.find((item) => item.date <= date)?.kg ?? profile.startingWeightKg
     const input = planInputSchema.safeParse({ ...profile, startingWeightKg: kg })
     if (!input.success) return []
     const baseline = estimatePlan(input.data, 'gentle').maintenance
-    const calories = intake.reduce((sum, row) => sum + row.grams * row.per100g.calories / 100, 0)
-    let training = 0
+    const calories = intake?.reduce((sum, row) => sum + row.grams * row.per100g.calories / 100, 0) ?? null
+    const treadmill = dayWalks.reduce((sum, walk) => sum + treadmillEnergy(walk, kg), 0)
+    let training = treadmill
     let missing = 0
-    for (const walk of walksByDate.get(date) ?? []) {
-      const band = treadmill.find(([upperSpeed]) => walk.speed < upperSpeed)
-      if (band && walk.minutes <= 240) training += activityEnergy(band[1], walk.minutes, kg)
-      else missing++
-    }
     for (const workout of workoutsByDate.get(date) ?? []) {
       if (workout.minutes) training += activityEnergy(3.5, workout.minutes, kg)
       else missing++
     }
-    return [{ date, calories, baseline, training, missing, deficit: baseline + training - calories }]
-  }).sort((a, b) => b.date.localeCompare(a.date))
+    const deficit = calories === null ? null : baseline + training - calories
+    return [{ date, calories, baseline, treadmill, training, missing, confirmed, deficit }]
+  })
 }
