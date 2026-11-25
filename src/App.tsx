@@ -35,7 +35,8 @@ export function App({ accountName }: { accountName: string }) {
           <Route path="/settings" element={<Settings />} />
           <Route path="/weight" element={<Weight />} />
           <Route path="/nutrition" element={<Nutrition />} />
-          <Route path="/workouts" element={<Workouts />} />
+          <Route path="/workouts" element={<Workouts key="bodyweight" />} />
+          <Route path="/workouts/equipment" element={<Workouts key="equipment" equipment />} />
           <Route path="/treadmill" element={<Treadmill />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/shopping" element={<Shopping />} />

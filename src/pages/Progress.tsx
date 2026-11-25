@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { db, defaultProfile } from '../db/database'
+import { useProgramProgress } from '../db/useProgramProgress'
 import { energyBalanceDays, kcalPerKgEquivalent } from '../domain/energyBalance'
 import { addDays, dateLabel, localDate } from '../domain/dates'
 import { nutrientKeys, nutrientLabels, scaleNutrients, sumNutrients } from '../domain/nutrition'
@@ -26,11 +27,10 @@ export function Progress() {
   const meals = useLiveQuery(() => db.meals.orderBy('date').toArray(), [], [])
   const walks = useLiveQuery(() => db.walks.orderBy('date').toArray(), [], [])
   const workouts = useLiveQuery(() => db.workouts.orderBy('date').toArray(), [], [])
-  const days = useLiveQuery(() => db.days.orderBy('number').toArray(), [], [])
-  const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
+  const today = localDate()
+  const { days = [], profile = defaultProfile } = useProgramProgress(today) ?? {}
   const length = profile.programDays
   const confirmations = useLiveQuery(() => db.intakeConfirmations.toArray(), [], [])
-  const today = localDate()
   const energy = energyBalanceDays({ profile, weights, meals, walks, workouts, confirmations, today })
   const total = energy.reduce((sum, row) => sum + row.deficit, 0)
   const missing = energy.reduce((sum, row) => sum + row.missing, 0)

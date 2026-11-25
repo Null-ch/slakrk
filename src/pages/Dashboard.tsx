@@ -2,9 +2,10 @@ import { Activity, CalendarDays, Dumbbell, Footprints, Scale, Utensils } from 'l
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Link } from 'react-router-dom'
 import { db, defaultProfile } from '../db/database'
+import { useProgramProgress } from '../db/useProgramProgress'
 import { plannedMenu } from '../domain/personalPlan'
 import { calculateBmi } from '../domain/calculations'
-import { localDate } from '../domain/dates'
+import { addDays, localDate } from '../domain/dates'
 import { mealKinds, nutrientKeys, nutrientLabels, nutritionNumber, scaleNutrients, sumNutrients } from '../domain/nutrition'
 import { activeDayNumber, isClosed, planForDay, taskKeys, taskNames } from '../domain/program'
 
@@ -13,16 +14,16 @@ const formatDate = new Intl.DateTimeFormat('ru', { weekday: 'long', day: 'numeri
 export function Dashboard() {
   const now = new Date()
   const today = localDate(now)
-  const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
+  const { profile = defaultProfile, program, days = [] } = useProgramProgress(today) ?? {}
   const latest = useLiveQuery(() => db.weights.where('date').belowOrEqual(today).last(), [today])
-  const program = useLiveQuery(() => db.programs.get('program'))
-  const days = useLiveQuery(() => db.days.toArray(), [], [])
   const meals = useLiveQuery(() => db.meals.where('date').equals(today).toArray(), [today], [])
   const currentWeight = latest?.kg ?? profile.startingWeightKg
   const bmi = calculateBmi(currentWeight, profile.heightCm)
   const active = activeDayNumber(days, profile.programDays)
-  const day = days.find(({ number }) => number === active)
-  const plan = program && active ? planForDay(active, profile.autoPlan, profile.appliedActivity) : undefined
+  const todayNumber = program && Array.from({ length: profile.programDays }, (_, index) => index + 1)
+    .find((number) => addDays(program.started, number - 1) === today)
+  const day = days.find(({ number }) => number === todayNumber)
+  const plan = todayNumber ? planForDay(todayNumber, profile) : undefined
   const closed = days.filter((entry) => entry.number <= profile.programDays && isClosed(entry)).length
   const totals = sumNutrients(meals.map((entry) => scaleNutrients(entry.per100g, entry.grams / 100)))
   const menu = useLiveQuery(() => db.menuOverrides.get(today), [today])?.meals ?? plannedMenu(today, (profile.autoPlan || profile.appliedMenu) ? profile.goals.calories : undefined, profile.appliedMenu)
@@ -66,9 +67,9 @@ export function Dashboard() {
         <h2 id="activity-heading"><Dumbbell aria-hidden="true" /> План активности</h2>
         {plan ? <>
           <p>{plan.kind ? 'Силовая ' + plan.kind : plan.minutes ? 'Силовых сегодня нет' : 'День отдыха'}</p>
-          {plan.minutes && <p className="activity-row"><Footprints size={20} aria-hidden="true" /> {day?.minutes ?? plan.minutes} мин · {day?.speed ?? plan.speed}{!day?.speed && profile.autoPlan ? '' : ' км/ч'} · {day?.incline ?? plan.incline}%</p>}
-          <ul className="my-3">{taskKeys.filter((key) => key === 'nutrition' || key === 'weight' || (key === 'walking' && Boolean(plan.minutes)) || (key === 'workout' && Boolean(plan.kind))).map((key) => <li key={key}>{day?.tasks[key] ? '✓' : '○'} {taskNames[key]}</li>)}</ul>
-        </> : <p className="muted">{program ? 'Все дни программы закрыты.' : 'План появится после старта программы.'}</p>}
+          {plan.minutes && <p className="activity-row"><Footprints size={20} aria-hidden="true" /> {day?.minutes || plan.minutes} мин · по желанию</p>}
+          <ul className="my-3">{taskKeys.filter((key) => key === 'nutrition' || key === 'weight' || (key === 'walking' && (Boolean(plan.minutes) || day?.tasks.walking)) || (key === 'workout' && (Boolean(plan.kind) || day?.tasks.workout))).map((key) => <li key={key}>{day?.tasks[key] ? '✓' : '○'} {taskNames[key]}</li>)}</ul>
+        </> : <p className="muted">{program ? 'На сегодня плана нет.' : 'План появится после старта программы.'}</p>}
         <div className="inline-actions section-gap"><Link className="secondary" to="/workouts">Тренировки</Link><Link className="secondary" to="/treadmill">Дорожка</Link></div>
       </section>
     </div>

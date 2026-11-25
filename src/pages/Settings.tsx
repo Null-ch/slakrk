@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { CheckCircle2, CircleAlert, LoaderCircle } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { db, profileSchema, type Profile } from '../db/database'
+import { trainingLoad } from '../domain/program'
 import { localDate } from '../domain/dates'
 import { menuStyles, menuStyleLabels } from '../domain/menuRotation'
 import { activityLevels, activityOptions, recommendPlan } from '../domain/personalPlan'
@@ -28,6 +29,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
   }
   const [draft, setDraft] = useState<Profile | null>(profile)
   const [saving, setSaving] = useState(false)
+  const load = draft ? trainingLoad(draft, 1) : undefined
   const recommendation = draft ? recommendPlan(draft, localDate()) : undefined
 
   function read(data: FormData, preview = false) {
@@ -105,7 +107,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
         {recommendation ? <>
           <p>Расход ≈ {recommendation.maintenance} ккал · цель {recommendation.calories} ккал · {recommendation.reduction ? `дефицит ≈ ${recommendation.reduction} ккал` : 'без дефицита'}.</p>
           <p>Сегодня в меню ≈ {recommendation.menuCalories} ккал · белки {recommendation.goals.protein} г · жиры {recommendation.goals.fat} г · углеводы {recommendation.goals.carbohydrates} г.</p>
-          <p>Ходьба · {activityOptions[recommendation.level].walk} минут в комфортном темпе. Силовые · {activityOptions[recommendation.level].sets} {activityOptions[recommendation.level].sets === 1 ? 'подход' : 'подхода'} на упражнение.</p>
+          <p>Ходьба · {load?.minutes} минут в комфортном темпе. Силовые · {load?.sets} {load?.sets === 1 ? 'подход' : 'подхода'} на упражнение.</p>
           {!profile.autoPlan && <label className="!flex items-center"><input className="!w-5" type="checkbox" name="canApply" /> Мне подходит обычная физическая нагрузка, у меня нет медицинских ограничений, беременности или грудного вскармливания.</label>}
         </> : <>
           <p className="muted">Расчёт доступен для взрослых с корректно заполненным профилем, без указанных медицинских ограничений и без недостаточного веса.</p>

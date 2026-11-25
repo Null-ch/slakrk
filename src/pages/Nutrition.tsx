@@ -77,7 +77,7 @@ export function Nutrition() {
       <details><summary>Белки, жиры и углеводы</summary>{nutrientKeys.slice(1).map((key) => <p key={key}>{nutrientLabels[key]} · {nutritionNumber.format(totals[key])} / {nutritionNumber.format(profile.goals[key])}</p>)}</details>
       {date <= localDate() && entries.length > 0 && <>
         <button className="secondary" disabled={saving} onClick={() => void confirmIntake()}>{confirmed ? 'Снять подтверждение дня' : 'Подтвердить полное питание за день'}</button>
-        <p className="muted">{confirmed ? 'День учтён в оценке энергобаланса.' : 'Подтвердите, если все калории за день отражены в дневнике.'}</p>
+        <p className="muted">{confirmed ? 'Питание учтено в календаре программы и оценке энергобаланса.' : 'Подтвердите, если все калории за день отражены в дневнике.'}</p>
       </>}
       <p role="status">{message}</p>
     </section>

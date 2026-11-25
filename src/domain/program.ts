@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import type { ActivityLevel } from './personalPlan'
+import { addDays } from './dates'
+import { calculateBmi } from './calculations'
+import type { Profile } from '../db/database'
 
 export const taskKeys = ['nutrition', 'workout', 'walking', 'weight'] as const
 export const taskNames = { nutrition: 'Питание', workout: 'Силовая тренировка', walking: 'Ходьба', weight: 'Взвешивание' }
@@ -23,22 +25,58 @@ export type Program = z.infer<typeof programSchema>
 export type ProgramDay = z.infer<typeof daySchema>
 export type ShoppingItem = z.infer<typeof shoppingSchema>
 
-const schedule: [string, string][] = [
-  ['А', '10'], ['', '20'], ['Б', '10'], ['', '20'], ['А', '10'], ['', '20–25'], ['', ''],
-  ['Б', '15'], ['', '25'], ['А', '15'], ['', '25'], ['Б', '15'], ['', '30'], ['', ''],
-  ['А', '15'], ['', '30'], ['Б', '15'], ['', '30–35'], ['А', '15'], ['', '35–40'], ['', ''],
-]
-
-export function planForDay(number: number, beginner = false, level?: ActivityLevel) {
-  if (beginner && level === 'gentle' && number >= 1 && number <= 21) {
-    const weekday = (number - 1) % 7
-    const kind = weekday === 0 ? 'А' : weekday === 3 ? 'Б' : ''
-    return { kind, minutes: [0, 2, 3, 5].includes(weekday) ? '5–10' : '', speed: 'комфортный темп', incline: '0' }
+export function trainingLoad(profile: Profile, number: number) {
+  const level = profile.appliedActivity ?? profile.recommendationActivity ?? 'starter'
+  const bmi = calculateBmi(profile.startingWeightKg, profile.heightCm)
+  const gentle = level === 'gentle' || profile.ageYears >= 65 || bmi >= 35
+  const week = Math.floor((number - 1) / 7)
+  const progressing = week > 0 && profile.programDays >= 14
+  return {
+    gentle,
+    sets: gentle ? 1 : progressing && level === 'regular' ? 3 : 2,
+    restSeconds: gentle ? 90 : 75,
+    target: gentle ? '6–8' : progressing ? '10–12' : '8–10',
+    minutes: gentle ? '5–10' : progressing ? '15–20' : '10–15',
   }
-  const [kind, minutes] = schedule[number - 1] ?? ['', '']
-  if (beginner) return { kind, minutes: minutes ? level === 'regular' ? kind ? '15' : '20' : kind ? '10' : '15' : '', speed: 'комфортный темп', incline: '0' }
-  const week = Math.ceil(number / 7)
-  return { kind, minutes, speed: week === 1 ? '3–3,5' : week === 2 ? '3,5–4' : '3,5–4,5', incline: week === 1 ? '0' : week === 2 ? '0–2' : '0–3' }
+}
+
+export function planForDay(number: number, profile: Profile) {
+  const load = trainingLoad(profile, number)
+  const week = Math.floor((number - 1) / 7)
+  const weekday = (number - 1) % 7
+  const strengthDays = load.gentle || profile.programDays < 7 ? [0, 3] : [0, 2, 4]
+  const index = strengthDays.indexOf(weekday)
+  const kind = index < 0 ? undefined : (week * strengthDays.length + index) % 2 === 0 ? 'А' : 'Б'
+  return { ...load, kind, minutes: [1, 3, 5].includes(weekday) ? load.minutes : '', speed: 'комфортный темп', incline: '0' }
+}
+
+type Task = typeof taskKeys[number]
+
+export function programProgress(
+  program: Program | undefined,
+  saved: ProgramDay[],
+  profile: Profile,
+  today: string,
+  recorded: Record<Task, Set<string>>,
+) {
+  if (!program) return []
+  const byNumber = new Map(saved.map((day) => [day.number, day]))
+  return Array.from({ length: profile.programDays }, (_, index): ProgramDay | undefined => {
+    const number = index + 1
+    const previous = byNumber.get(number)
+    const date = addDays(program.started, index)
+    if (date > today) return previous
+    const tasks = { ...previous?.tasks }
+    for (const key of taskKeys) {
+      if (recorded[key].has(date)) tasks[key] = true
+    }
+    if (!previous && !Object.values(tasks).some(Boolean)) return undefined
+    const complete = tasks.nutrition && (!planForDay(number, profile).kind || tasks.workout)
+    return {
+      ...previous, number, date: previous?.date ?? date, tasks,
+      status: previous && isClosed(previous) ? previous.status : complete ? 'Выполнен' : 'В процессе',
+    }
+  }).filter((day): day is ProgramDay => day !== undefined)
 }
 
 export function isClosed(day: ProgramDay) { return day.status !== 'В процессе' }

@@ -2,44 +2,30 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ExercisePose } from '../components/ExercisePose'
-import { db } from '../db/database'
-import { exercisePrograms, workoutSchema, type Workout } from '../domain/activity'
-import { dateLabel, localDate } from '../domain/dates'
-import { activityOptions } from '../domain/personalPlan'
-import { activeDayNumber, planForDay } from '../domain/program'
+import { db, defaultProfile } from '../db/database'
+import { workoutSchema, type Workout } from '../domain/activity'
+import { addDays, dateLabel, localDate } from '../domain/dates'
+import { planForDay, trainingLoad } from '../domain/program'
+import { workoutExercises } from '../domain/workoutPlan'
 
-const setup: Record<Workout['kind'], string[][]> = {
-  А: [
-    ['Поставьте устойчивый стул у стены. Стопы на ширине плеч.', 'Отведите таз назад и мягко коснитесь сиденья.', 'Встаньте, опираясь на всю стопу.'],
-    ['Встаньте ровно, гантели по бокам, локти около корпуса.', 'Согните руки без раскачивания.', 'Медленно опустите гантели.'],
-    ['Встаньте лицом к стене, ладони на уровне плеч.', 'Согните локти, приближая грудь к стене.', 'Оттолкнитесь ладонями и вернитесь в исходное положение.'],
-    ['Поднимите гантели к плечам и поставьте стопы устойчиво.', 'Выжмите гантели вверх, сохраняя положение корпуса.', 'Плавно верните гантели к плечам.'],
-    ['Встаньте рядом с устойчивой опорой.', 'Поднимите пятки, сохраняя равновесие.', 'Плавно опустите пятки.'],
-  ],
-  Б: [
-    ['Лягте на спину. Согните колени, поставьте стопы на пол.', 'Поднимите таз, опираясь на стопы.', 'Опустите таз. Движение должно быть комфортным.'],
-    ['Опритесь свободной рукой на устойчивую поверхность.', 'Подтяните локоть с гантелью к боку, сохраняя спину ровной.', 'Медленно опустите гантель. Выполните на обе стороны.'],
-    ['Сядьте устойчиво и поставьте обе стопы на пол.', 'Плавно выпрямите одну ногу.', 'Опустите ногу. Повторите на второй стороне.'],
-    ['Встаньте на четвереньки, ладони под плечами.', 'Вытяните противоположные руку и ногу на удобную высоту.', 'Вернитесь в исходное положение и смените сторону.'],
-    ['Встаньте устойчиво, слегка согните локти.', 'Поднимите руки в стороны без рывка до комфортной высоты.', 'Плавно опустите руки.'],
-  ],
-}
-
-export function Workouts() {
+export function Workouts({ equipment = false }: { equipment?: boolean }) {
   const history = useLiveQuery(() => db.workouts.orderBy('date').reverse().toArray(), [], [])
-  const days = useLiveQuery(() => db.days.toArray(), [], [])
   const program = useLiveQuery(() => db.programs.get('program'))
-  const profile = useLiveQuery(() => db.profiles.get('profile'))
-  const length = profile?.programDays ?? 21
-  const number = activeDayNumber(days, length)
-  const scheduled = program && number ? planForDay(number, profile?.autoPlan, profile?.appliedActivity).kind : ''
-  const sets = profile?.autoPlan && profile.appliedActivity ? activityOptions[profile.appliedActivity].sets : 2
+  const profile = useLiveQuery(() => db.profiles.get('profile')) ?? defaultProfile
+  const today = localDate()
+  const number = program && Array.from({ length: profile.programDays }, (_, index) => index + 1)
+    .find((day) => addDays(program.started, day - 1) === today)
+  const scheduled = number ? planForDay(number, profile).kind : undefined
+  const load = trainingLoad(profile, number ?? 1)
+  const { sets, restSeconds } = load
   const [preparing, setPreparing] = useState<Workout['kind']>()
+  const preview = preparing ? workoutExercises(preparing, equipment, today, load) : undefined
   const [deadline, setDeadline] = useState<number>()
   const [seconds, setSeconds] = useState(0)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const active = history.find((row) => !row.finished)
+  const finished = history.filter((row) => row.finished && Boolean(row.equipment) === equipment)
   const exerciseIndex = active?.exercises.findIndex((row) => row.reps.includes(null)) ?? -1
   const exercise = exerciseIndex < 0 ? undefined : active?.exercises[exerciseIndex]
   const setIndex = exercise?.reps.indexOf(null) ?? -1
@@ -63,10 +49,11 @@ export function Workouts() {
   }
 
   async function start() {
-    if (!preparing) return
+    if (!preparing || !preview) return
     const kind = preparing
-    const record: Workout = { id: crypto.randomUUID(), date: localDate(), kind, finished: false, restSeconds: 75,
-      exercises: exercisePrograms[kind].map((row) => ({ ...row, reps: Array<null>(sets).fill(null) })),
+    const record: Workout = { id: crypto.randomUUID(), date: today, kind, finished: false, restSeconds,
+      equipment: equipment ? true : undefined,
+      exercises: preview,
     }
     if (await save(record)) { setPreparing(undefined); clearTimer() }
   }
@@ -86,36 +73,44 @@ export function Workouts() {
   }
 
   return <>
-    <header className="page-heading"><h1>Тренировки</h1><Link to="/treadmill" className="secondary w-fit">Беговая дорожка</Link></header>
+    <header className="page-heading"><h1>{equipment ? 'Тренировки с гантелями' : 'Тренировки без инвентаря'}</h1><div className="inline-actions">
+      <Link to={equipment ? '/workouts' : '/workouts/equipment'} className="secondary">{equipment ? 'Без инвентаря' : 'С гантелями'}</Link>
+      <Link to="/treadmill" className="secondary">Беговая дорожка</Link>
+    </div></header>
+    {active && Boolean(active.equipment) !== equipment && <p className="panel">
+      Открыта незавершённая тренировка. <Link to={active.equipment ? '/workouts/equipment' : '/workouts'}>Перейти к тренировке</Link>
+    </p>}
     {!active && !preparing && <section className="panel form-grid"><h2>Выберите программу</h2>
-      {scheduled && <p>По плану сегодня · тренировка {scheduled}</p>}
+      {!equipment && scheduled && <p>По плану сегодня · тренировка {scheduled}</p>}
       <button className="action" onClick={() => setPreparing('А')}>Начать программу А</button>
       <button className="secondary" onClick={() => setPreparing('Б')}>Начать программу Б</button>
       <p className="muted">По плану · {sets} {sets === 1 ? 'подход' : 'подхода'} на упражнение. Используйте комфортную нагрузку.</p>
     </section>}
-    {!active && preparing && <section className="panel form-grid"><h2>Программа {preparing} · разминка</h2>
+    {!active && preparing && preview && <section className="panel form-grid"><h2>Программа {preparing} · разминка</h2>
       <ol className="list-decimal ps-6"><li>Начните с лёгкой ходьбы на месте.</li><li>Добавьте плавные движения плечами, руками и ногами.</li><li>Постепенно разогрейтесь в комфортном темпе.</li></ol>
+      <h3>Упражнения на сегодня</h3>
+      <ol className="list-decimal ps-6">{preview.map(({ name, target }) => <li key={name}>{name} · {target} повторений</li>)}</ol>
       {deadline && <p role="timer">{seconds ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` : 'Время вышло'}</p>}
       {!deadline && <button className="secondary" onClick={() => timer(300)}>Запустить таймер · 5 мин</button>}
       <button className="action" disabled={busy} onClick={() => void start()}>Разминка выполнена</button>
       <button className="secondary" onClick={() => { clearTimer(); setPreparing(undefined) }}>Назад</button>
     </section>}
-    {active && exercise && seconds > 0 && <section className="panel form-grid"><h2>Отдых между подходами</h2><p role="timer">{seconds} сек</p><p>Дождитесь, пока дыхание станет спокойнее.</p><button className="secondary" onClick={clearTimer}>Я готов продолжать</button></section>}
-    {active && exercise && seconds === 0 && <form key={exerciseIndex + '-' + setIndex} className="panel form-grid" onSubmit={saveSet}>
+    {active && Boolean(active.equipment) === equipment && exercise && seconds > 0 && <section className="panel form-grid"><h2>Отдых между подходами</h2><p role="timer">{seconds} сек</p><p>Дождитесь, пока дыхание станет спокойнее.</p><button className="secondary" onClick={clearTimer}>Я готов продолжать</button></section>}
+    {active && Boolean(active.equipment) === equipment && exercise && seconds === 0 && <form key={exerciseIndex + '-' + setIndex} className="panel form-grid" onSubmit={saveSet}>
       <h2>{exercise.name}</h2>
       <p className="muted">Программа {active.kind} · упражнение {exerciseIndex + 1} из {active.exercises.length} · подход {setIndex + 1} из {exercise.reps.length}</p>
       <ExercisePose name={exercise.name} />
-      <ol className="list-decimal ps-6">{(exercisePrograms[active.kind][exerciseIndex]?.name === exercise.name ? setup[active.kind][exerciseIndex] ?? [exercise.technique] : [exercise.technique]).map((step) => <li key={step}>{step}</li>)}</ol>
+      <p>{exercise.technique}</p>
       <p>Ориентир · {exercise.target} повторений.</p>
       <label>Сколько получилось<input name="reps" type="number" min="0" max="200" required /></label>
       <button className="action" disabled={busy}>Записать подход</button>
       <button className="secondary" type="button" disabled={busy} onClick={() => { if (window.confirm('Завершить и оставить записанные подходы?')) void finish() }}>Закончить раньше</button>
     </form>}
-    {active && !exercise && <section className="panel form-grid"><h2>Все подходы записаны</h2><button className="action" disabled={busy} onClick={() => void finish()}>Завершить тренировку</button></section>}
+    {active && Boolean(active.equipment) === equipment && !exercise && <section className="panel form-grid"><h2>Все подходы записаны</h2><button className="action" disabled={busy} onClick={() => void finish()}>Завершить тренировку</button></section>}
     <p className="section-gap muted">При боли в груди, головокружении или необычной одышке остановитесь.</p>
     <p role="status">{message}</p>
     <section className="panel section-gap"><h2>История</h2>
-      {history.some((row) => row.finished) ? <ul className="record-list">{history.filter((row) => row.finished).map((row) => <li key={row.id}>
+      {finished.length ? <ul className="record-list">{finished.map((row) => <li key={row.id}>
         <details><summary>{dateLabel(row.date)} · программа {row.kind}{row.minutes ? ` · ${row.minutes} мин` : ''}</summary>
           <ul>{row.exercises.map((item, index) => <li key={index}>{item.name} · {item.reps.map((reps) => reps ?? '—').join(' / ')}</li>)}</ul>
           <form className="form-grid section-gap" onSubmit={(event) => {
